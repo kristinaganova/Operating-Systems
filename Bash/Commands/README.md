@@ -125,6 +125,7 @@ cp -r $(find /etc -perm /o+r,g+r,u+r) ~/myetc
 **or**
 ```bash
 cp -r $(find /etc -perm -444) ~/myetc
+```
 
 ---
 ## Task 02-a-9500
