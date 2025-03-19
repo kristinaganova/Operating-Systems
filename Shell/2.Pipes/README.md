@@ -1,3 +1,8 @@
+## To do :
+```
+03-a-5004
+
+```
 
 ## Task 03-a-0200
 ### Сортирайте /etc/passwd лексикографски по поле UserID.
@@ -154,4 +159,50 @@ cat /etc/passwd | cut -f 5 -d ':' | cut -f 2 -d ' '| cut -f 1 -d ',' |grep -v -E
 
 cat /etc/passwd | cut -f 5 -d ':' | cut -f 2 -d ' '| cut -f 1 -d ',' |grep -v -E ".{8,}$" | grep -E "[^a-zA-Z]"
 =
+```
+
+## Task 03-a-5004
+### Изведете целите редове от /etc/passwd за хората от 03-a-5003
+
+#### Commands:
+```bash
+cat /etc/passwd | cut -f 5 -d ':' | cut -f 2 -d ' '| cut -f 1 -d ',' |grep -v -E ".{8,}$" | grep -E "[^a-zA-Z]" | xargs -I {} grep -F {} /etc/passwd
+```
+
+## Task 03-b-0300
+### Намерете само Group ID-то си от файлa /etc/passwd.
+
+#### Commands:
+```bash
+grep $(id -u) /etc/passwd | cut -f 4 -d ':'
+```
+
+## Task 03-b-3400
+### Колко коментара има във файла /etc/services ? Коментарите се маркират със символа #, след който всеки символ на реда се счита за коментар.
+
+#### Commands:
+```bash
+cat /etc/services | grep '^#'| wc -l
+37
+```
+
+## Task 03-b-3500
+### Колко файлове в /bin са 'shell script'-oве? (Колко файлове в дадена директория са ASCII text?)
+
+#### Commands:
+```bash
+find -L /bin -type f -exec file {} \; | grep 'shell script' | wc -l
+77
+
+find /usr/bin -type f -exec file {} \; | grep 'ASCII text' | wc -l
+76
+```
+
+## Task 03-b-3600
+### Направете списък с директориите на вашата файлова система, до които нямате достъп. Понеже файловата система може да е много голяма, търсете до 3 нива на дълбочина.
+
+#### Commands:
+```bash
+find / -maxdepth 3 -type d >/dev/null 2>errors.txt
+cat errors.txt | cut -f 2 -d ':' | tr -d ' ' | cut -c 4- | rev | cut -c 4- 
 ```
