@@ -206,3 +206,97 @@ find /usr/bin -type f -exec file {} \; | grep 'ASCII text' | wc -l
 find / -maxdepth 3 -type d >/dev/null 2>errors.txt
 cat errors.txt | cut -f 2 -d ':' | tr -d ' ' | cut -c 4- | rev | cut -c 4- 
 ```
+
+## Task 03-b-4001
+### Във file2 (inplace) подменете всички малки букви с главни.
+
+#### Commands:
+```bash
+cat dir5/file2 | tr 'a-z' 'A-Z' > dir5/tmp && cat dir5/tmp > dir5/file2 && rm dir5/tmp
+
+#or 
+
+sed -i 's/[a-z]/\U&/g' dir5/file2
+```
+
+## Task 03-b-4002
+### Във file3 (inplace) изтрийте всички "1"-ци.
+
+#### Commands:
+```bash
+sed -i -e '/1/d' -e '/^[[:space:]]*$/d' dir5/file3
+```
+
+## Task 03-b-4003
+### Изведете статистика за най-често срещаните символи в трите файла.
+
+#### Commands:
+```bash
+cat dir5/file{1,2,3} | sort | uniq -c | sort -nr
+```
+
+## Task 03-b-4004
+### Прочетете текстов файл file1 и направете всички главни букви малки като запишете резултата във file2.
+
+#### Commands:
+```bash
+cat dir5/file1 | tr 'a-z' 'A-Z' > dir5/file2
+```
+#note: tr не записва резултата във файла => си записваме резултата в друг файл и си го презаписваме ако искаме да заменим директно във файла
+
+## Task 03-b-5200
+### Намерете броя на символите, различни от буквата 'а' във файла /etc/passwd
+
+#### Commands:
+```bash
+grep -o '.' /etc/passwd | grep -v 'a' | grep -v 'а' | sort | uniq -c | sort -nr
+```
+
+## Task 03-b-5300
+### Намерете броя на уникалните символи, използвани в имената на потребителите от /etc/passwd.
+
+#### Commands:
+```bash
+cat /etc/passwd | cut -f 5  -d ':' | cut -f 1 -d ',' | grep -o '.' | sed -e '/[[:space:]]/d' -e '/[[:punct:]]/d' | sort | uniq -c | sort -nr | wc -l
+```
+
+## Task 03-b-5400
+### Отпечатайте всички редове на файла /etc/passwd, които не съдържат символния низ 'ов'.
+
+#### Commands:
+```bash
+ grep -v "ов" /etc/passwd
+```
+
+## Task 03-b-6100
+### Отпечатайте последната цифра на UID на всички редове между 28-ми и 46-ред в /etc/passwd.
+
+#### Commands:
+```bash
+ cat /etc/passwd | head -n 46 | tail -n 18 | cut -f 3 -d ':' |cut -c 4
+```
+
+## Task 03-b-6700
+### Отпечатайте правата (permissions) и имената на всички файлове, до които имате read достъп, намиращи се в директорията /tmp. (hint: 'man find', вижте -readable)
+
+#### Commands:
+```bash
+ find /tmp -readable 2>/dev/null -printf "%M %f\n"
+ ```
+
+## Task 03-b-6900
+### Намерете имената на 10-те файла във вашата home директория, чието съдържание е редактирано най-скоро. На първо място трябва да бъде най-скоро редактираният файл. Намерете 10-те най-скоро достъпени файлове. (hint: Unix time)
+
+#### Commands:
+```bash
+ find . -type f -printf "%T@ %f\n" | sort -nr -k 1 -t ' ' | cut -f 2 -d ' '|head -n 10
+ ```
+
+## Task 03-b-7000
+### да приемем, че файловете, които съдържат C код, завършват на `.c` или `.h`. Колко на брой са те в директорията `/usr/include`? Колко реда C код има в тези файлове?
+
+#### Commands:
+```bash
+find /usr/include -name '*.[ch]' |  wc -l
+cat $(find /usr/include -name '*.[ch]') |  wc -l
+ ```
