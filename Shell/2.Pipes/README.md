@@ -300,3 +300,79 @@ cat /etc/passwd | cut -f 5  -d ':' | cut -f 1 -d ',' | grep -o '.' | sed -e '/[[
 find /usr/include -name '*.[ch]' |  wc -l
 cat $(find /usr/include -name '*.[ch]') |  wc -l
  ```
+
+ ## Task 03-b-8000
+### Вземете факултетните номера на студентите (описани във файла <РЕПО>/exercises/data/mypasswd.txt) от СИ и ги запишете във файл si.txt сортирани. Студент е част от СИ, ако home директорията на този потребител (според<РЕПО>/exercises/data/mypasswd.txt) се намира в /home/SI директорията.
+
+#### Commands:
+```bash
+cp  /srv/fmi-os/exercises/data/mypasswd.txt data.txt
+cat data.txt | grep /home/SI | cut -f 1 -d ':' | cut -c 2- | grep -v '[a-zA-Z]' | sort -n -r > si.txt
+ ```
+
+ ## Task 03-b-8500
+### За всяка група от /etc/group изпишете "Hello, <група>", като ако това е вашата група, напишете "Hello, <група> - I am here!".
+
+#### Commands:
+```bash
+cat /etc/group | cut -d ':' -f 1 | sed 's/^\(.*\)$/Hello, \1/g'
+ ```
+
+  ## Task 03-b-8600
+### Shell Script-овете са файлове, които по конвенция имат разширение .sh. Всеки такъв файл започва с "#!<interpreter>" , където <interpreter> указва на операционната система какъв интерпретатор да пусне (пр: "#!/bin/bash","#!/usr/bin/python3 -u").Намерете всички .sh файлове в директорията `/usr` и нейните поддиректории, и проверете кой е най-често използваният интерпретатор.
+
+#### Commands:
+```bash
+cat $(find /usr -type f -name '*.sh') | egrep '^#!' | cut -d '/' -f 3 | grep -v [[:space:]] | sort  | uniq -c | sort -n -r
+
+#or
+
+find /usr -type f -name '*.sh' -exec grep -m1 '^#!' {} \; | cut -d '/' -f 3 | grep -v [[:space:]] | sort | uniq -c | sort -n -r
+ ```
+
+   ## Task 03-b-8700
+### 1. Изведете GID-овете на 5-те най-големи групи спрямо броя потребители, за които съответната група е основна (primary).
+### 2. (*) Изведете имената на съответните групи. Hint: /etc/passwd
+
+#### Commands:
+```bash
+#1
+cat /etc/passwd | cut -d ':' -f 4 | sort -n | uniq -c | sort -n -r -k 1 | head -n 5 | awk '{print $2}'
+
+#2
+
+grep --color -f <(cat /etc/passwd | cut -d ':' -f 4 | sort -n | uniq -c | sort -n -r -k 1 | head -n 5 | awk '{print $2}' | sed 's/^\(.*\)$/:\1:/g') /etc/group | cut -d ':' -f 1
+
+ ```
+
+ ## Script to see who is logged with their names 
+ #### Commands:
+```bash
+ grep --color  -f <( who | cut -d ' ' -f 1 ) /etc/passwd | cut -d ':' -f 5 | cut -d ',' -f 1
+ ```
+
+## Task 03-b-9000
+### Направете файл eternity. Намерете всички файлове, намиращи се във вашата home директория и нейните поддиректории, които са били модифицирани в последните 15мин (по възможност изключете .).  Запишете във eternity името (път) на файла и времето (unix time) на последната промяна.
+
+#### Commands:
+```bash
+touch eternity
+find ~ -type f -mmin -15 ! -name ".*" -printf "%p %T@\n" > eternity
+```
+
+## Task 03-b-9051
+### Използвайки файл population.csv, намерете колко е общото население на света през 2008 година. А през 2016?
+
+#### Commands:
+```bash
+cat population.csv | grep --color $1 | cut -d ',' -f 4 | awk '{sum+=$1} END {printf "%.0f\n", sum}'
+```
+
+## Task 03-b-9052
+### Използвайки файл population.csv, намерете през коя година в България има най-много население.
+
+#### Commands:
+```bash
+cat population.csv | grep 'BGR' | sort -n -r -k 4 -t ',' | head -n 1 | cut -d ',' -f 3
+```
+

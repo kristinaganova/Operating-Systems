@@ -12,3 +12,25 @@ MMU_2.4
 Броят на търсените редовете е 2
 
 cat philip-j-fry.txt | grep -e '^[^a-w]*[2468][^a-w]*$' | wc -l
+
+or
+
+cat /srv/sample-data/01-shell/2016-SE-01/philip-j-fry.txt | grep -E '[02468]' | grep -v '[a-w]' | wc -l
+
+or
+
+cat /srv/sample-data/01-shell/2016-SE-01/philip-j-fry.txt | grep -E "[02468]" | grep -E "^[^a-w]*$" | wc -l
+
+
+2017-SE-01 
+Намерете имената на топ 5 файловете в текущата директория с най-много hardlinks.
+
+find . -exec stat -c "%h %n" {} \; | sort -k 1 -t ' ' -nr | head -n 5 | cut -f 2 -d ' '
+
+
+2018-SE-02 Напишете серия от команди, извеждащи на екрана само inode-а на най-скоро променения (по съдържание) файл, намиращ се в home директорията на потребител pesho (или нейните поддиректории), който има повече от едно име.
+
+find /home/pesho -links +1 -printf "%T@ %i %f\n" | sort -n -k 1 -t ' ' | cut -f 2 -d ' ' | head -n 1
+
+
+
