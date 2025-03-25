@@ -1,7 +1,8 @@
 ## To do :
 ```
 03-a-5004
-
+03-b-9400
+03-b-9500
 ```
 
 ## Task 03-a-0200
@@ -155,10 +156,9 @@ cat /etc/passwd | cut -f 5 -d ':' | cut -f 2 -d ' '| cut -f 1 -d ',' |grep -E ".
 ```bash
 cat /etc/passwd | cut -f 5 -d ':' | cut -f 2 -d ' '| cut -f 1 -d ',' |grep -v -E ".{8,}$"
 
-//to remove the white spaces from the ouputs
+#to remove the white spaces from the ouputs
 
 cat /etc/passwd | cut -f 5 -d ':' | cut -f 2 -d ' '| cut -f 1 -d ',' |grep -v -E ".{8,}$" | grep -E "[^a-zA-Z]"
-=
 ```
 
 ## Task 03-a-5004
@@ -167,6 +167,10 @@ cat /etc/passwd | cut -f 5 -d ':' | cut -f 2 -d ' '| cut -f 1 -d ',' |grep -v -E
 #### Commands:
 ```bash
 cat /etc/passwd | cut -f 5 -d ':' | cut -f 2 -d ' '| cut -f 1 -d ',' |grep -v -E ".{8,}$" | grep -E "[^a-zA-Z]" | xargs -I {} grep -F {} /etc/passwd
+
+#or 
+
+ grep --color -f <(cat /etc/passwd | cut -f 5 -d ':' | tr -d ',,,,SI' | cut -d ' ' -f 2 | sed '/^[[:space:]]*$/d' | grep -v -E '^.{8,}$' | grep -v -E [a-zA-Z]) /etc/passwd
 ```
 
 ## Task 03-b-0300
@@ -257,7 +261,7 @@ grep -o '.' /etc/passwd | grep -v 'a' | grep -v 'а' | sort | uniq -c | sort -nr
 
 #### Commands:
 ```bash
-cat /etc/passwd | cut -f 5  -d ':' | cut -f 1 -d ',' | grep -o '.' | sed -e '/[[:space:]]/d' -e '/[[:punct:]]/d' | sort | uniq -c | sort -nr | wc -l
+cat /etc/passwd | cut -f 5  -d ':' | cut -f 1 -d ',' | grep -o '.' | se -e '/[[:space:]]/d' -e '/[[:punct:]]/d' | sort | uniq -c | sort -nr | wc -l
 ```
 
 ## Task 03-b-5400
@@ -376,3 +380,111 @@ cat population.csv | grep --color $1 | cut -d ',' -f 4 | awk '{sum+=$1} END {pri
 cat population.csv | grep 'BGR' | sort -n -r -k 4 -t ',' | head -n 1 | cut -d ',' -f 3
 ```
 
+
+## Task 03-b-9053
+### Използвайки файл population.csv, намерете коя държава има най-много население през 2016. А коя е с най-малко население?
+(Hint: Погледнете имената на държавите)
+
+#### Commands:
+```bash
+
+cat population.csv | grep --color '2016' | sort -n -r -k 4 -t',' | head -n 1 | rev | cut -d ',' -f 4- | rev | tr -d '"'
+Egypt, Arab Rep.
+
+cat population.csv | grep --color '2016' | sort -n -r -k 4 -t',' | tail -n 1 | rev | cut -d ',' -f 4- | rev | tr -d '"'
+
+```
+
+## Task 03-b-9054
+### Използвайки файл population.csv, намерете коя държава е на 42-ро място по население през 1969. Колко е населението й през тази година?
+
+#### Commands:
+```bash
+grep '1969' population.csv | sort -n -r -k 4 -t ',' | head -n -42 | tail -n 1 | rev | cut -d ',' -f 1,4- | rev | tr -d '"' | tr ',' ':'
+```
+## Task 03-b-9102
+### Да се изведат само имената на песните.
+
+#### Commands:
+```bash
+ find ~/songs -mindepth 1 | sed 's:.*- \(.*\)(.*).*:\1:g'
+```
+
+## Task 03-b-9103
+### Имената на песните да се направят с малки букви, да се заменят спейсовете с долни черти и да се сортират.
+
+#### Commands:
+```bash
+find ~/songs -mindepth 1 | sed 's:.*- \(.*\)(.*).*:\1:g' | sed 's/[A-Z]/\L&/g' | rev | cut -c 2- | rev | tr ' ' '-' | sort -t '-' -k 1,999
+```
+
+## Task 03-b-9104
+### Да се изведат всички албуми, сортирани по година.
+
+#### Commands:
+```bash
+find ~/songs -mindepth 1 | sed 's:.*(\(.*\)).*:\1:g' | sort -nr -t ',' -k 2 | uniq
+```
+
+## Task 03-b-9105
+### Да се преброят/изведат само песните на Beatles и Pink.
+
+#### Commands:
+```bash
+find ~/songs -printf '%f\n' | grep -E  'Beatles - |Pink -' | cut -d '-' -f 2 | sed 's/\(.*\)(.*).*/\1/g' | cut -c 2- | wc -l
+```
+
+## Task 03-b-9106
+### Да се направят директории с имената на уникалните групи. За улеснение, имената от две думи да се напишат слято: Beatles, PinkFloyd, Madness
+
+#### Commands:
+```bash
+mkdir $(find ~/songs -mindepth 1 -printf '%f\n' | cut -d '-' -f 1 | sort | uniq | tr -d ' ')
+```
+
+## Task 03-b-9200
+### Напишете серия от команди, които извеждат детайли за файловете и директориите в текущата директория, които имат същите права за достъп както най-големият файл в /etc директорията.
+
+#### Commands:
+```bash
+find ~ -perm $(find /etc -maxdepth 1 -type f -printf "%s %f %m\n" 2>/dev/null| sort -n -r -k 1 -t ' ' | head -n 1 | cut -d ' ' -f 3) -printf "%f %m\n"
+```
+
+## Task 03-b-9300
+### Дадени са ви 2 списъка с email адреси - първият има 12 валидни адреса, а вторията има само невалидни. Филтрирайте всички адреси, така че да останат само валидните. Колко кратък регулярен израз можете да направите за целта?
+
+Валидни email адреси (12 на брой):
+email@example.com
+firstname.lastname@example.com
+email@subdomain.example.com
+email@123.123.123.123
+1234567890@example.com
+email@example-one.com
+_______@example.com
+email@example.name
+email@example.museum
+email@example.co.jp
+firstname-lastname@example.com
+unusually.long.long.name@example.com
+
+Невалидни email адреси:
+#@%^%#$@#$@#.com
+@example.com
+myemail
+Joe Smith <email@example.com>
+email.example.com
+email@example@example.com
+.email@example.com
+email.@example.com
+email..email@example.com
+email@-example.com
+email@example..com
+Abc..123@example.com
+(),:;<>[\]@example.com
+just"not"right@example.com
+this\ is"really"not\allowed@example.com
+
+#### Commands:
+```bash
+grep -E '^([_0-9a-zA-Z][a-zA-Z0-9_.-]+)+@[^-._]([0-9a-zA-Z]*[0-9a-zA-Z_.-]+)+$' emails.txt | grep -v -E '.*[.]{2,}.*'
+```
