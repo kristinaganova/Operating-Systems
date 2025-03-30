@@ -268,3 +268,502 @@ while true; do
     sleep 1
 done
 ```
+## Task 05-b-4600
+### Да се напише shell скрипт, който валидира дали дадено цяло число попада в целочислен интервал.
+Скриптът приема 3 аргумента: числото, което трябва да се провери; лява граница на интервала; дясна граница на интервала.
+Скриптът да връща exit status:
+- 3, когато поне един от трите аргумента не е цяло число
+- 2, когато границите на интервала са обърнати
+- 1, когато числото не попада в интервала
+- 0, когато числото попада в интервала
+
+Примери:
+$ ./validint.sh -42 0 102; echo $?
+1
+
+$ ./validint.sh 88 94 280; echo $?
+1
+
+$ ./validint.sh 32 42 0; echo $?
+2
+
+$ ./validint.sh asdf - 280; echo $?
+3
+
+#### Commands:
+```bash
+#!/bin/bash
+
+if [[ ${#} -ne 3 ]];
+then
+    echo "The number of arguments should be 3"
+fi
+
+for arg in "${@}" ; do
+    if ! ( echo "${arg}" | grep -q -E '^(-){0,1}[0-9]+$' ) ; then
+        echo "Argument "${arg}" is not a number"
+        exit 3
+    fi
+done
+
+number=${1}
+lowerBound=${2}
+upperBound=${3}
+
+if [[ ${upperBound} -lt ${lowerBound} ]];
+then
+    echo "Upper and lower bound are reversed"
+    exit 2
+fi
+
+if [[ ${number} -ge ${lowerBound} && ${number} -le ${upperBound} ]];
+then
+    echo "Number is in interval"
+    exit 0
+else
+    echo "Number is not in interval"
+    exit 1
+fi
+
+```
+
+## Task 05-b-4700
+### Да се напише shell скрипт, който форматира големи числа, за да са по-лесни за четене. Като пръв аргумент на скрипта се подава цяло число. Като втори незадължителен аргумент се подава разделител. По подразбиране цифрите се разделят с празен интервал.
+
+Примери:
+$ ./nicenumber.sh 1889734853
+1 889 734 853
+
+$ ./nicenumber.sh 7632223 ,
+7,632,223
+#### Commands:
+```bash
+#!/bin/bash
+
+if ! ( echo "${1}" | grep -E -q '^(-){0,1}[0-9]+$') ;
+then
+    echo "The first argument is not a number"
+    exit 1
+fi
+
+sep=' '
+if [[ ${#} -eq 2 ]];
+then
+    if  echo "${2}" | grep -E -q '^.$' ;
+    then
+        sep=${2}
+    else
+        echo "The separattor should single character"
+        exit 2
+    fi
+fi
+
+echo "${1}" | rev | sed -E "s/(...)/\1${sep}/g" | rev | sed -E "s/^${sep}(.*)$/\1/g"
+
+```
+
+## Task 05-b-4800
+### Да се напише shell скрипт, който приема файл и директория. Скриптът проверява в подадената директория и нейните под-директории дали съществува копие на подадения файл и отпечатва имената на намерените копия, ако съществуват такива.
+
+NB! Под 'копие' разбираме файл със същото съдържание.
+
+#### Commands:
+```bash
+#!/bin/bash
+
+if [[ ! -f ${1} ]];
+then
+    echo "File does not exist"
+    exit 1
+fi
+
+if [[ ! -d ${2} ]];
+then
+    echo "Invalid directory"
+    exit 2
+fi
+
+find ${2} -type f -exec diff {} ${1} 2>/dev/null \; 2>/dev/null
+
+#for file in $( find ${2} -type f 2>/dev/null ) ;
+#do
+#    diff -q ${file} ${1} > /dev/null
+#    if [[ ${?} -eq 0 ]];
+#    then
+#        echo "${file}"
+#    fi
+#done
+
+```
+
+## Task 05-b-6600
+### Да се напише shell script, който генерира HTML таблица съдържаща описание на потребителите във виртуалката ви. Таблицата трябва да има:
+- заглавен ред с имената нa колоните
+- колони за username, group, login shell, GECOS field (https://en.wikipedia.org/wiki/Gecos_field)
+
+Пример:
+$ ./passwd-to-html.sh > table.html
+$ cat table.html
+
+```html
+<table>
+  <tr>
+    <th>Username</th>
+    <th>group</th>
+    <th>login shell</th>
+    <th>GECOS</th>
+  </tr>
+  <tr>
+    <td>root</td>
+    <td>root</td>
+    <td>/bin/bash</td>
+    <td>GECOS here</td>
+  </tr>
+  <tr>
+    <td>ubuntu</td>
+    <td>ubuntu</td>
+    <td>/bin/dash</td>
+    <td>GECOS 2</td>
+  </tr>
+</table>
+```
+
+#### Commands:
+```bash
+
+#!/bin/bash
+
+users=$(who | cut -d ' ' -f 1 )
+
+get_field() {
+    egrep "^${1}" /etc/passwd | cut -d ":" -f "${2}" | sed -E 's:(.*):<td>\1</td>:g'
+}
+
+echo "<table>"
+
+    echo -e "\t<tr>"
+    echo -e "\t\t<th>Username</th>"
+    echo -e "\t\t<th>group</th>"
+    echo -e "\t\t<th>login shell</th>"
+    echo -e "\t\t<th>GECOS</th>"
+    echo -e "\t</tr>"
+
+for user in $users;
+do
+    name=$(get_field "${user}" 1)
+    group=$(get_field "${user}" 4)
+    gecos=$(get_field "${user}" 5 | tr ' ' '.' | sed -E "s:^([^,]*).*$:\1</th>:g" )
+    login_shell=$(get_field "${user}" 7 )
+    echo -e "\t<tr>"
+    echo -en "\t\t"
+    echo "${name}"
+    echo -en "\t\t"
+    echo "${group}"
+    echo -en "\t\t"
+    echo "${login_shell}"
+    echo -en "\t\t"
+    echo "${gecos}"
+    echo -e "\t</tr>"
+done
+
+echo "</table>"
+
+```
+
+
+
+## Task 05-b-4800
+### 
+#### Commands:
+```bash
+#!/bin/bash
+```
+
+## Task 05-b-6600
+### Да се напише shell скрипт, който получава единствен аргумент директория и изтрива всички повтарящи се (по съдържание) файлове в дадената директория. Когато има няколко еднакви файла, да се остави само този, чието име е лексикографски преди имената на останалите дублирани файлове.
+
+```
+Примери:
+$ ls .
+f1 f2 f3 asdf asdf2
+asdf и asdf2 са еднакви по съдържание, но f1, f2, f3 са уникални
+
+$ ./rmdup .
+$ ls .
+f1 f2 f3 asdf
+asdf2 е изтрит
+```
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+if [[ ${#} -ne 1 ]] ;
+then
+    echo "1 param allowed - directory"
+    exit 1
+fi
+
+if [[ ! -d ${1} ]] ;
+then
+    echo "Not valid directory"
+    exit 2
+fi
+
+files=$(find ${1} -mindepth 1 -maxdepth 1 -type f)
+
+for file in $files ; do
+    for file2 in $files ; do
+        if [[ "$file" != "$file2" ]] ;
+        then
+            if diff "$file" "$file2" >& /dev/null ;
+            then
+                if [[ "${file}" > "${file2}" ]] ;
+                then
+                    rm -i "${file}"
+                    echo "Removing ${file}"
+                 else
+                    echo "Removing ${file2}"
+                    rm -i "${file2}"
+                fi
+            fi
+        fi
+    done
+done
+```
+
+## Task 05-b-6800
+### Да се напише shell скрипт, който получава единствен аргумент директория и отпечатва списък с всички файлове и директории в нея (без скритите). До името на всеки файл да седи размера му в байтове, а до името на всяка директория да седи броят на елементите в нея (общ брой на файловете и директориите, без скритите). 
+
+```
+a Добавете параметър -a, който указва на скрипта да проверява и скритите файлове и директории.
+
+Пример:
+$ ./list.sh .
+asdf.txt (250 bytes)
+Documents (15 entries)q
+empty (0 entries)
+junk (1 entry)
+karh-pishtov.txt (8995979 bytes)
+scripts (10 entries)
+
+Примери:
+$ ls .
+f1 f2 f3 asdf asdf2
+asdf и asdf2 са еднакви по съдържание, но f1, f2, f3 са уникални
+
+$ ./rmdup .
+$ ls .
+f1 f2 f3 asdf
+asdf2 е изтрит
+```
+
+#### Commands:
+
+```bash
+
+#!/bin/bash
+
+if [[ ${#} -eq 0 ]] || [[ ${#} -gt 2 ]] ;
+then
+    echo "Parameturs can only be - Directory -a(optional)"
+    exit 1
+fi
+
+if [[ ${#} -eq 2 ]] && [[ ${2} != "-a" ]] ;
+then
+    echo "Incorrect second param"
+    exit 2
+fi
+
+if [[ ! -d ${1} ]] ;
+then
+    echo "The argument should be a directory"
+    exit 2
+fi
+
+if [[ ${#} -eq 2 ]] && [[ ${2} == "-a" ]] ;
+then
+    results=$(find "${1}" -mindepth 1 -maxdepth 1 -type f)
+else
+    results=$(find "${1}" -mindepth 1 -maxdepth 1 -type f ! -name ".*")
+fi
+
+for line in $results ; do
+    if [[ -d $line ]] ;
+    then
+        count=$(find ${line} -mindepth 1 -maxdepth 1 | wc -l)
+        echo "${line} ${count}"
+    elif [[ -f $line ]] ;
+    then
+        size=$(stat -c "%s" ${line})
+        echo "${line} ${size}"
+    fi
+done
+
+```
+
+## Task 05-b-7000
+### Да се напише shell скрипт, който приема произволен брой аргументи - имена на файлове. Скриптът да прочита от стандартния вход символен низ и за всеки от зададените файлове извежда по подходящ начин на стандартния изход броя на редовете, които съдържат низа.
+
+NB! Низът може да съдържа интервал.
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+if [[ ${#} -eq 0]] ;
+then
+    echo "There should be at least one param"
+    exit 1
+fi
+
+read -p "String: " string
+
+while [[ ${#} -ne 0 ]] ;
+do
+    file=${1}
+    shift
+    count=$(grep -E "^.*${string}.*$" "${file}" | wc -l)
+    echo "${file} ${count}"
+done
+
+```
+
+## Task 05-b-7100
+### Да се напише shell скрипт, който приема два параметъра - име на директория и число. Скриптът да извежда на стандартния изход имената на всички обикновени файлове във директорията, които имат размер, по-голям от подаденото число.
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+if [[ ${#} -ne 2 ]] ;
+then
+    echo "There should be 2 parameters"
+    exit 1
+fi
+
+if [[ ! -d ${1} ]] ;
+then
+    echo "First parameter should be a directory"
+    exit 2
+fi
+
+if [[ ! ${2} =~ ^[0-9]+$ ]] ;
+then
+    echo "Second parameter should be a number"
+    exit 3
+fi
+
+echo "$(find "${1}" -mindepth 1 -maxdepth 1 -type f -size +"${2}"c)"
+```
+
+## Task 05-b-7200
+### Да се напише shell скрипт, който приема произволен брой аргументи - имена на файлове или директории. Скриптът да извежда за всеки аргумент подходящо съобщение:
+	- дали е файл, който може да прочетем
+	- ако е директория - имената на файловете в нея, които имат размер, по-малък от броя на файловете в директорията.
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+while [[ ${#} -ne 0 ]] ;
+do
+    echo "Inf for ${1}:"
+    if [[ -f ${1} ]] ;
+    then
+        if cat "${1}" >/dev/null 2>$1; then
+            echo "${1} is readable"
+        fi
+    fi
+
+    if [[ -d ${1} ]] ;
+    then
+        count_files=$(find "${1}" -mindepth 1 -maxdepth 1 -type f | wc -l)
+        echo "Directory ${1} has: ${count_files} files. And these has size smaller than the count of files: "
+        echo "$(find "${1}" -mindepth 1 -maxdepth 1 -type f -size -${count_files})c"
+    fi
+    shift
+    echo -e "\n"
+done
+
+```
+
+## Task 05-b-7500
+### Напишете shell script guess, която си намисля число, което вие трябва да познате. В зависимост от вашия отговор, програмата трябва да ви казва "надолу" или "нагоре", докато не познате числото. Когато го познаете, програмата да ви казва с колко опита сте успели.
+
+./guess (програмата си намисля 5)
+
+Guess? 22
+...smaller!
+Guess? 1
+...bigger!
+Guess? 4
+...bigger!
+Guess? 6
+...smaller!
+Guess? 5
+RIGHT! Guessed 5 in 5 tries!
+
+Hint: Един начин да направите рандъм число е с $(( (RANDOM % b) + a  )), което ще генерира число в интервала [a, b]. Може да вземете a и b като параметри, но не забравяйте да направите проверката.
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+read -p "Enter lower bound: " a
+
+read -p "Enter upper bound: " b
+
+check_input() {
+    if [[ ! ${1} =~ ^[0-9]+$ ]] ;
+    then
+        echo "Invalid input for ${1}"
+        exit 1
+    fi
+}
+
+check_input "${a}"
+check_input "${b}"
+
+if [[ ${a} -gt  ${b} ]] ;
+then
+    temp=$a
+    a=$b
+    b=$temp
+fi
+
+toGuess=$(( (RANDOM%$b) + a ))
+count=0
+
+while read -p "Guess: " number ;
+do
+
+    if [[ ! ${number} =~ ^[0-9]+$ ]] ;
+    then
+        echo "Not a number. Try again "
+        continue
+    fi
+
+    ((count++))
+    if [[ ${number} -eq ${toGuess} ]];
+    then
+        echo "RIGHT! Guessed ${toGuess} in ${count} tries!"
+        exit 0
+    elif [[ ${number} -lt  ${toGuess} ]] ;
+    then
+        echo "...bigger"
+        continue
+    elif [[ ${number} -gt  ${toGuess} ]] ;
+    then
+        echo "...smaller"
+        continue
+    fi
+done
+
+```
