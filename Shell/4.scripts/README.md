@@ -767,3 +767,248 @@ do
 done
 
 ```
+
+## Task 05-b-7550
+### Да се напише shell скрипт, който приема параметър - име на потребител. Скриптът да прекратява изпълненито на всички текущо работещи процеси на дадения потребител, и да извежда колко са били те.
+
+NB! Може да тествате по същият начин като описаният в 05-b-4300
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+if [[ ${#} -gt 1 ]] ;
+then
+    echo "Only one parameter allowed"
+    exit 1;
+elif [[ ${#} -eq 0 ]] ;
+then
+    echo "Provide at least one parameter "
+    exit 2
+fi
+
+if [[ -z ${1} ]] ;
+then
+    echo "Username sannot be empty string"
+    exit 3
+
+processes=$(ps -e -u ${1} -o pid= )
+count=$(echo "${processes}" | wc -l)
+
+for pid in ${processes} ;
+do
+    kill -9 "${pid}"
+done
+
+echo "Killed ${count} processes"
+
+```
+
+## Task 05-b-7700
+### Да се напише shell скрипт, който приема два параметъра - име на директория и число. Скриптът да извежда сумата от размерите на файловете в директорията, които имат размер, по-голям от подаденото число.
+
+#### Commands:
+
+```bash
+ #!/bin/bash
+
+if [[ ${#} -ne 2 ]] ;
+then
+    echo "There should be 2 parameters"
+    exit 1
+fi
+
+dir=${1}
+num=${2}
+
+if [[ ! -d ${dir} ]] ;
+then
+    echo "Invalid argument: 1st parameter should be a directory"
+    exit 2
+fi
+
+if [[ ! ${num} =~ ^[0-9]+$ ]] ;
+then
+    echo "Invalid argument: 2nd patameter should be a number"
+    exit 3
+fi
+
+files=$( find "${dir}" -mindepth 1 -maxdepth 1 -type f -size +"${num}"c -exec stat -c %s {} \; )
+
+sum=0
+for size in ${files} ;
+do
+    ((sum+=size))
+done
+
+echo "${sum}"
+
+#or
+# find "${dir}" -mindepth 1 -maxdepth 1 -type f -size +"${num}"c -exec stat -c %s {} \; | awk '{sum+=$1} END {print sum}'
+
+```
+
+## Task 05-b-7800
+### Да се напише shell скрипт, който намира броя на изпълнимите файлове в PATH.
+Hint: Предполага се, че няма спейсове в имената на директориите
+Hint2: Ако все пак искаме да се справим с този случай, да се разгледа IFS променливата и констуркцията while read -d
+
+#### Commands:
+
+```bash
+
+#!/bin/bash
+
+if [[ "${#}" -eq 0 ]] ;
+then
+    echo "There should be 1 parameter"
+    exit 1
+fi
+
+if [[ ! -d "${1}" ]] ;
+then
+    echo "The parameter should be a directory"
+    exit 2
+fi
+
+count=$(find "${1}" -mindepth 1 -maxdepth 1 -type f -executable | wc -l)
+echo "${count}"
+
+```
+
+## Task 05-b-8000
+### Напишете shell script, който получава като единствен аргумент име на потребител и за всеки негов процес изписва съобщение за съотношението на RSS към VSZ. Съобщенията да са сортирани, като процесите с най-много заета виртуална памет са най-отгоре.
+
+Hint:
+Понеже в Bash няма аритметика с плаваща запетая, за смятането на съотношението използвайте командата bc. За да сметнем нампример 24/7, можем да: echo "scale=2; 24/7" | bc
+Резултатът е 3.42 и има 2 знака след десетичната точка, защото scale=2.
+Алтернативно, при липса на bc ползвайте awk.
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+if [[ ${1} -ne 1 ]] ;
+then
+    echo "1 parameter"
+    exit 1
+fi
+
+if ! egrep "${1}" /etc/passwd ;
+then
+    echo "Invalid user"
+    exit 2
+fi
+
+processes=$( ps -e -u "${1}" -o user=,pid=,tty=,rss=,vsz= -sort -vsz | awk '{print $4/$5}' )
+
+```
+
+## Task 05-b-9100
+### Опишете поредица от команди или напишете shell скрипт, които/който при известни две директории SOURCE и DESTINATION:
+- намира уникалните "разширения" на всички файлове, намиращи се някъде под SOURCE. (За простота приемаме, че в имената на файловете може да се среща символът точка '.' максимум веднъж.)
+- за всяко "разширение" създава по една поддиректория на DESTINATION със същото име
+- разпределя спрямо "разширението" всички файлове от SOURCE в съответните поддиректории в DESTINATION
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+if [[ ${#} -ne 2 ]] ;
+then
+    echo "Invalid number parameters."
+    exit 1
+fi
+
+if [[ ! -d "${1}" ]] ;
+then
+    echo "${1} is not a directory"
+    exit 2
+fi
+
+if [[ ! -d "${2}" ]] ;
+then
+    echo "No directory with name ${2}. Creating..."
+    mkdir "${2}"
+fi
+
+files=$( find ${1} -mindepth 1 -maxdepth 1 -type f)
+
+for line in ${files} ;
+do
+    extension=$(echo "${line}" | awk -F '.' '{print $NF}')
+    if [[ ! -d "${destination}/${extension}" ]] ;
+    then
+        mkdir "${destination}/${extension}"
+    fi
+    cp "${line}" "${destination}/${extension}"
+done
+
+```
+
+## Task 05-b-9200
+### Да се напише shell скрипт, който получава произволен брой аргументи файлове, които изтрива. Ако бъде подадена празна директория, тя бива изтрита. Ако подадения файл е директория с поне 1 файл, тя не се . За всеки изтрит файл (директория) скриптът добавя ред във log файл с подходящо съобщение.
+
+Името на log файла да се чете от shell environment променлива, която сте конфигурирали във вашия .bashrc.
+Добавете параметър -r на скрипта, който позволява да се изтриват непразни директории рекурсивно.
+Добавете timestamp на log съобщенията във формата: 2018-05-01 22:51:36
+
+Примери:
+$ export RMLOG_FILE=~/logs/remove.log
+$ ./rmlog -r f1 f2 f3 mydir/ emptydir/
+$ cat $RMLOG_FILE
+[2018-04-01 13:12:00] Removed file f1
+[2018-04-01 13:12:00] Removed file f2
+[2018-04-01 13:12:00] Removed file f3
+[2018-04-01 13:12:00] Removed directory recursively mydir/
+[2018-04-01 13:12:00] Removed directory emptydir/
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -lt 1 ]] ;
+then
+    echo "Not enough parameturs"
+    exit 1
+fi
+
+flag=0
+if [[ "${1}" == "-r" ]] ;
+then
+    flag=1
+    shift
+fi
+
+while [[ "${#}" -ne 0 ]] ;
+do
+    currentDate=$(date +'%Y-%m-%d %H:%M:%S')
+
+    if [[ -d "${1}" ]] ;
+    then
+
+        countFiles=$( find "${1}" -mindepth 1 | wc -l )
+        if [[ "${countFiles}" -eq 0 ]] ;
+        then
+            echo "[${currentDate}] removing: ${1}"
+            rmdir "${1}"
+        elif [[ "${countFiles}" -gt 0 ]] && [[ "${flag}" -eq 1 ]] ;
+        then
+            echo "[${currentDate}] removing non empty directory ${1}"
+            rm -r "${1}"
+        fi
+
+    elif [[ -f "${1}" ]] ;
+    then
+        echo "[${currentDate}] removing file: ${1}"
+        rm -i "${1}"
+    fi
+    shift
+
+done
+
+```
