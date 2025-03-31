@@ -104,7 +104,6 @@ s62196:x:1221:504:Elena Tuparova,SI,2,1:/home/SI/s62196:/bin/bash
 grep <(find $(grep "/home/SI" example-passwd | cut -d ':' -f 6) -type f -printf "%p %C@\n") | awk '{if ($2<1551176100 && $2>1551168000) print $1}' example-passwd | cut -d ':' -f 1,5 | tr ':' ' ' | cut -d ',' -f1
 
 
-
 2020-SE-02 Даден е текстовият файл spacex.txt, който съдържа информация за полети на ракети на
 SpaceX. На всеки ред има информация за един такъв полет в следните колони, разделени с вертикална
 черта ’|’:
@@ -130,5 +129,51 @@ date|launch site|outcome|payload
 1405285200|CCAFS|Success|Orbcomm
 
 cp /srv/sample-data/01-shell/2020-SE-02/spacex.txt spacex.txt
-grep $(cat spacex.txt | cut -d '|' -f 2,3 | grep 'Failure' | sort -r -k 1 -t '|' | uniq -c | head -n 1 | cut -d '|' -f 1 | rev | cut -d ' ' -f 1 | rev) spacex.txt| sort -n -r -k 1 -t '|' | cut -d '|' -f 3,4 | head -n 1 | tr '|' ':'
+grep $(cat spacex.txt | cut -d '|' -f 2,3 | grep 'Failure' | sort -r -k 1 -t '|' | uniq -c | head -n 1 | cut -d '|' -f 1 | rev | cut -d ' ' -f 1 | rev) spacex.txt | sort -n -r -k 1 -t '|' | cut -d '|' -f 3,4 | head -n 1 | tr '|' ':'
 Failure:Amos-6
+
+
+Зад. 19 2016-SE-03 Напишете shell скрипт който, ако се изпълнява от root, проверява кои потребители на
+системата нямат homedir или не могат да пишат в него.
+Примерен формат:
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+
+#!/bin/bash
+
+#if [[ $(id -u) != "root" ]] ;
+#then
+#    echo "Only root user can run this script"
+#    exit 1
+#fi
+
+cat /etc/passwd | grep -v "/home" | cut -d ":" -f 1
+
+#for user in $(cat /etc/passwd | cut -d ':' -f 1) ;
+#do
+#    if echo "${no_home}" | grep "${user}"; then
+#        continue
+#    fi
+
+#    home_dir=$(grep "^.*${user}.*$" | cut -d ':' -f 6)
+#    perms=$(stat -c "%A" ${home_dir})
+
+#    if [[ "${perms:2:1}" != 'w' ]] ;
+#    then
+#        echo "${user}: ${home_dir}"
+#        continue
+#    fi
+#done
+
+for file in $(cat /etc/passwd | cut -d ':' -f 6) ; do
+    if [[ -d ${file} ]] ;
+    then
+        perm=$(stat -c "%A" ${file} | cut -c 3)
+        if [[ ${perm} != 'w' ]] ;
+        then
+            user=$(stat -c "%u" ${file})
+            echo "${user}"
+        fi
+    fi
+done
