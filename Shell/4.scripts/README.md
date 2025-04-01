@@ -1012,3 +1012,74 @@ do
 done
 
 ```
+
+## Task 05-b-9500
+### (Цветно принтиране) Напишете shell script color_print, който взима два параметъра. Първият може да е измежду "-r", "-g" "-b", а вторият е произволен string.На командата "echo" може да се подаде код на цвят, който ще оцвети текста в определения цвят. В зависимост от първия аргумент, изпринтете втория аргумен в определения цвят:
+
+"-r" е червено. Кодът на червеното е '\033[0;31m' (echo -e "\033[0;31m This is red")
+"-g" е зелено. Кодът на зеленото е '\033[0;32m' (echo -e "\033[0;32m This is green")
+"-b" е синьо. Кодът на синьото е '\033[0;34m' (echo -e "\033[0;34m This is blue")
+Ако е подадена друга буква изпишете "Unknown colour", а ако изобщо не е подаден аргумент за цвят, просто изпишете текста.
+
+Hint:
+
+В края на скрипта си напишете:
+echo -e '\033[0m'
+,за да не се прецакат цветовете на терминала. Това е цветът на "няма цвят".
+
+Примери:
+$ export RMLOG_FILE=~/logs/remove.log
+$ ./rmlog -r f1 f2 f3 mydir/ emptydir/
+$ cat $RMLOG_FILE
+[2018-04-01 13:12:00] Removed file f1
+[2018-04-01 13:12:00] Removed file f2
+[2018-04-01 13:12:00] Removed file f3
+[2018-04-01 13:12:00] Removed directory recursively mydir/
+[2018-04-01 13:12:00] Removed directory emptydir/
+
+#### Commands:
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -lt 1 ]] ;
+then
+    echo "Not enough parameturs"
+    exit 1
+fi
+
+flag=0
+if [[ "${1}" == "-r" ]] ;
+then
+    flag=1
+    shift
+fi
+
+while [[ "${#}" -ne 0 ]] ;
+do
+    currentDate=$(date +'%Y-%m-%d %H:%M:%S')
+
+    if [[ -d "${1}" ]] ;
+    then
+
+        countFiles=$( find "${1}" -mindepth 1 | wc -l )
+        if [[ "${countFiles}" -eq 0 ]] ;
+        then
+            echo "[${currentDate}] removing: ${1}"
+            rmdir "${1}"
+        elif [[ "${countFiles}" -gt 0 ]] && [[ "${flag}" -eq 1 ]] ;
+        then
+            echo "[${currentDate}] removing non empty directory ${1}"
+            rm -r "${1}"
+        fi
+
+    elif [[ -f "${1}" ]] ;
+    then
+        echo "[${currentDate}] removing file: ${1}"
+        rm -i "${1}"
+    fi
+    shift
+
+done
+
+```

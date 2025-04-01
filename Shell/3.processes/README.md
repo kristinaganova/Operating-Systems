@@ -65,3 +65,11 @@ grep --color -v -f <( who | cut -d ' ' -f 1 ) <( ps -eo user | sort | uniq )
 ```bash
 ps -A -o drs,group | grep 'root' | cut -d ' ' -f1 | sed '/^[[:space:]]*$/d'  | awk '{sum += $1; counter += 1;} END {if (counter > 0) print (sum/counter)}'
 ``` 
+
+## Task 04-b-8000.txt
+### Намерете всички PID и техните команди (без аргументите), които нямат tty, което ги управлява. Изведете списък само с командите без повторения.
+
+#### Commands:
+```bash
+ps -A -o pid=,comm=,tty= | grep --color '?' | cut -d ' ' -f 2 | sort | uniq
+``` 
