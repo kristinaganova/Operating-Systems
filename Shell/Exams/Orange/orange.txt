@@ -738,3 +738,113 @@ while read line ; do
 done < "${file}"
 
 mv "${temp}" "${file}"
+
+2022-IN-01
+Както знаете, при отваряне на файл с редактора vi, той създава в същата директория временен файл
+с име в следния формат: точка, името на оригиналния файл, точка, swp. Например, при редактиране
+на файл с име foo.txt ще се създаде временен файл с име .foo.txt.swp.
+Напишете shell скрипт, който приема два задължителни позиционни аргумента – имена на директории. Примерно извикване: ./foo.sh ./dir1 /path/to/dir2/
+В dir1 може да има файлове/директории, директорията dir2 трябва да е празна.
+Скриптът трябва да копира всички обикновенни файлове от dir1 (и нейните под-директории) в dir2,
+запазвайки директорийната структура, но без да копира временните файлове, създадени от редактора
+vi (по горната дефиниция).
+Забележка: За удобство приемаме, че не ни вълнува дали метаданните на обектите (owner, group,
+permissions, etc.) ще се запазят.
+Примерни обекти:
+dir1/
+dir1/a
+dir1/.a.swp
+dir1/b
+dir1/c/d
+dir1/c/.bar.swp
+Обекти след изпълнението:
+dir2/
+dir2/a
+dir2/b
+dir2/c/d
+dir2/c/.bar.swp
+
+#!/bin/bash
+
+if [[ "${#}" -ne 2 ]] ; then
+    echo "Invalid number of parameters"
+    exit 1
+fi
+
+dir1="${1}"
+dir2="${2}"
+
+if [[ ! -d "${dir1}" ]] || [[ ! -d "${dir2}" ]] ; then
+    echo "Parameters should be directories"
+    exit 2
+fi
+
+if [[ $(find "${dir2}" -mindepth 1 | wc -l) -ne 0 ]] ; then
+    echo "Second dir is not empty"
+    exit 3
+fi
+
+dir1_realpath=$(realpath "${dir1}")
+
+for file in $(find "${dir1}" -type f 2>/dev/null) ; do
+    if [[ ${file} =~ ^.*\.swp$ ]] ; then
+        continue
+    fi
+    file_path=$(realpath "${file}")
+    path=$(echo "${file_path}" | sed -E "s:^${dir1_realpath}/::" )
+
+    dir_path=$(echo "$path" | rev | cut -d '/' -f 2- | rev)
+
+    mkdir -p "${dir2}/${dir_path}" 2>/dev/null
+    cp "${file}" "${dir2}/${path}"
+done
+
+
+2023-CE-02
+Вие сте част от екип от физици от бъдещето, които анализират данни, събрани от различни наблюдателни точки в космоса. Разполагате с файлове с данни, които съдържат информация за разстоянието
+от наблюдателна точка до различни черни дупки в космоса. Един ред от такъв файл има следния вид:
+<име на черна дупка>: <разстояние> megaparsecs
+Примерни файлове (point1.opt отляво и point2.opt отдясно)
+Phoenix A: 1793 megaparsecs SMSS J215728.21-360215.1: 8211 megaparsecs
+H1821+643: 900 megaparsecs Holmberg 15A: 195 megaparsecs
+Holmberg 15A: 216 megaparsecs Phoenix A: 1823 megaparsecs
+SMSS J215728.21-360215.1: 7665 megaparsecs Ton 618: 3211 megaparsecs
+Вашата задача е да напишете скрипт, който приема три аргумента от командния ред (имената на два
+файла с данни от наблюдателни точки и името на черна дупка) и извежда коя от двете наблюдателни
+точки се намира по-близо до черната дупка.
+Примерно извикване:
+$ ./find_closest_point.sh point1.opt point2.opt 'Phoenix A'
+point1.opt
+
+
+#!/bin/bash
+
+if [[ "${#}" -ne 3 ]] ; then
+    echo "Invalid number of parameters"
+    exit 1
+fi
+
+file1="${1}"
+file2="${2}"
+if [[ ! -f "${file1}" ]] || [[ ! -f "${file2}" ]] ; then
+    echo "Invalid file"
+    exit 2
+fi
+
+black_hole="${3}"
+if [[ -z "${black_hole}" ]] ; then
+    echo "Invalid name"
+    exit 3
+fi
+
+
+res1=$(cat "${file1}" | grep "${black_hole}" | sed -E "s/^[^:]*:[[:space:]*]([0-9]+) megaparsecs$/\1/g" )
+res2=$(cat "${file2}" | grep "${black_hole}" | sed -E "s/^[^:]*:[[:space:]*]([0-9]+) megaparsecs$/\1/g")
+
+if [[ "${res1}" > ${res2} ]] ; then
+    echo "${file1}"
+if [[ "${res1}" == ${res2} ]] ; then
+    echo "Equal"
+else
+    echo "${file2}"
+fi
