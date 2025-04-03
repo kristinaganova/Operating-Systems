@@ -353,3 +353,144 @@ do
         echo "$(egrep "^[0-9]+,${line}$" "${input}" | sort -n -k 1 -t ',' | head -n 1)" >> "${output}"
     fi
 done <<< "${removed_id}"
+
+
+2019-SE-01 Напишете два скрипта (по един за всяка подточка), които четат редове от STDIN. Скриптовете трябва да обработват само редовете, които съдържат цели положителни или отрицателни числа;
+останалите редове се игнорират. Скриптовете трябва да извежда на STDOUT:
+а) всички уникални числа, чиято абсолютна стойност е равна на максималната абсолютна стойност сред всички числа
+б) всички най-малки уникални числа от тези, които имат максимална сума на цифрите си
+Примерен вход:
+We don't
+n11d n0
+educat10n
+11
+12.3
+6
+33
+-42
+-42
+111
+111
+-111
+Примерен изход за а):
+-111
+111
+Примерен изход за б):
+-42
+
+
+a)
+#!/bin/bash
+
+numbers_file=$(mktemp)
+
+while read line ;
+do
+    if [[ ${line} =~ ^((-)?[0-9]+( )?)+$ ]] ;
+    then
+        echo "${line}" >> "${numbers_file}"
+    fi
+done
+
+sed "s: :\n:g"
+
+max=$(cat "${numbers_file}" | tr -d '-' | sort -n -r | head -n 1)
+
+echo "Result:"
+cat "${numbers_file}" | egrep "^(-)?${max}$" | sort | uniq
+
+
+b)
+#!/bin/bash
+
+temp=$(mktemp)
+
+while read line ;
+do
+    if [[ ${line} =~ ^((-)?[0-9]+( )?)+$ ]] ;
+    then
+        echo "${line}" >> "${temp}"
+    fi
+done
+
+max_sum=0
+max_sum_num=0
+nums_with_sums=$(mktemp)
+
+while read line ;
+do
+    current_sum=$(echo "${line}" | sed -E "s:-?([0-9]):\1\n:g" | awk '{sum += $1} END {print sum}')
+    echo "${line} ${current_sum}" >> "${nums_with_sums}"
+
+    if [[ ${current_sum} -gt ${max_sum} ]] ;
+    then
+        max_sum=${current_sum}
+        max_sum_num=${line}
+    fi
+done < <(cat "${temp}" | tr ' ' '\n')
+
+echo "Result:"
+cat "${nums_with_sums}" | egrep "^-?[0-9]+ ${max_sum}$" | sort -n -k 1 | head -n 1 | cut -d ' ' -f 1
+
+
+2019-SE-02 
+Напишете шел скрипт, който приема множество параметри. Общ вид на извикване:
+./foo.sh [-n N] FILE1...
+В общия случай параметрите се третират като имена на (.log) файлове, които трябва да бъдат обработени от скрипта, със следното изключение: ако първият параметър е стрингът -n, то вторият параметър е число, дефиниращо стойност на променливата N, която ще ползваме в скрипта. Въвеждаме
+понятието идентификатор на файл (ИДФ), което се състои от името на даден файл без разширението
+.log. За удобство приемаме, че скриптът:
+• ще бъде извикван с аргументи имена на файлове, винаги завършващи на .log
+• няма да бъде извикван с аргументи имена на файлове с еднакъв ИДФ.
+Лог файловете са текстови, като всеки ред има следния формат:
+• време: timestamp във формат YYYY-MM-DD HH:MM:SS
+• интервал
+• данни: поредица от символи с произволна дължина
+За удобство приемаме, че редовете във всеки файл са сортирани по време възходящо.
+Примерно съдържание на даден лог файл:
+2019-05-05 06:26:54 orthanc rsyslogd: rsyslogd was HUPed
+2019-05-06 06:30:32 orthanc rsyslogd: rsyslogd was HUPed
+2019-05-06 10:48:29 orthanc kernel: [1725379.728871] Chrome_~dThread[876]: segfault
+Скриптът трябва да извежда на STDOUT последните N реда (ако N не е дефинирано - 10 реда) от всеки
+файл, в следния формат:
+• timestamp във формат YYYY-MM-DD HH:MM:SS
+• интервал
+• ИДФ
+• интервал
+• данни
+Изходът трябва да бъде глобално сортиран по време възходящо.
+
+
+#!/bin/bash
+
+if [[ "${1}" == "-n" ]] ;
+then
+    if [[ ! "${2}" =~ ^[0-9]+$ ]] ;
+    then
+        echo "Invalid N"
+        exit 1
+    else
+        N="${2}"
+    fi
+    shift
+    shift
+else
+    N=10
+fi
+
+for file in "${@}" ;
+do
+    if [[ ! -f "${file}" || ! "${file}" =~ .*\.log ]] ;
+    then
+        echo "Invalid argument"
+        exit 1
+    fi
+done
+
+for file in "${@}" ;
+do
+   content="$(cat "${file}")"
+   idf="$(echo "${file}" | sed -E 's:\.log::g')"
+   first_part=$(echo "${content}" | cut -d ' ' -f 1,2)
+   second_part=$(echo "${content}" | cut -d ' ' -f 3-)
+   echo "${first_part} ${idf} ${second_part}"
+done | sort | head -n "${N}"
