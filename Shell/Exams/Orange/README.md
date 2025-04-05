@@ -124,3 +124,55 @@ while read line ; do
     fi
 done < <(echo "${user_processes}" | awk '{print $1,$2}')
 ```
+
+
+###  `2017-SE-03`
+Напишете скрипт, който ако се изпълнява от root потребителя:
+а) извежда обобщена информация за броя и общото количество активна памет (RSS - resident set
+size, non-swaped physical memory that a task has used) на текущите процеси на всеки потребител;
+б) ако процесът с най-голяма активна памет на даден потребител използва два пъти повече памет
+от средното за потребителя, то скриптът да прекратява изпълнението му по подходящ начин.
+За справка:
+
+```bash
+$ ps aux | head -5
+USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+root 1 0.0 0.0 15820 1052 ? Ss Apr21 0:06 init [2]
+root 2 0.0 0.0 0 0 ? S Apr21 0:00 [kthreadd]
+root 3 0.0 0.0 0 0 ? S Apr21 0:02 [ksoftirqd/0]
+root 5 0.0 0.0 0 0 ? S< Apr21 0:00 [kworker/0:0H]
+Алтернативно, може да ползвате изхода от ps -e -o uid,pid,rss
+```
+
+```bash
+
+#!/bin/bash
+
+processes=$(ps -e -o user=,rss=,pid=)
+users=$(echo "${processes}" | awk '{print $1}' | sort | uniq)
+
+temp=$(mktemp)
+while read user ; do
+    count=$(echo "${processes}" | grep "${user}" | wc -l)
+    sum=$(echo "${processes}" | grep "${user}" | awk '{sum+=$2} END {print sum}' )
+    avg=$(echo "${sum} / ${count}" | bc )
+    echo "${user} ${avg}" >> ${temp}
+    echo "${user} count: ${count} rss count: ${sum}"
+done < <(echo "${users}")
+
+while read user ; do
+    avg=$(echo "$temp" | grep "${user}" | cut -d ' ' -f 2)
+    user_processes=$(echo "${processes}" | grep "$user")
+    while read process ; do
+        rss=$(echo "${process}" | awk '{print $2}')
+        if [[ "${rss}" -gt $((2 * "${avg}")) ]] ; then 
+            kill -9 $(echo "${process}" | awk '{print $3}')      
+        else 
+            continue
+        fi
+    done <<< "${user_processes}"
+    
+done <<< "${users}"
+
+rm "${temp}"
+```
