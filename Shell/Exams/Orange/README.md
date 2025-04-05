@@ -45,3 +45,82 @@ done
 ```
 
 ---
+
+###  `2017-IN-02`
+2017-IN-02 Напишете скрипт, който приема задължителен позиционен аргумент - име на потребител
+FOO. Ако скриптът се изпълнява от root:
+а) да извежда имената на потребителите, които имат повече на брой процеси от FOO, ако има такива;
+б) да извежда средното време (в секунди), за което са работили процесите на всички потребители
+на системата (TIME, във формат HH:MM:SS);
+в) ако съществуват процеси на FOO, които са работили над два пъти повече от средното време,
+скриптът да прекратява изпълнението им по подходящ начин.
+За справка:
+
+```bash
+$ ps -e -o user,pid,%cpu,%mem,vsz,rss,tty,stat,time,command | head -5
+USER PID %CPU %MEM VSZ RSS TT STAT TIME COMMAND
+root 1 0.0 0.0 15820 1920 ? Ss 00:00:05 init [2]
+root 2 0.0 0.0 0 0 ? S 00:00:00 [kthreadd]
+root 3 0.0 0.0 0 0 ? S 00:00:01 [ksoftirqd/0]
+root 5 0.0 0.0 0 0 ? S< 00:00:00 [kworker/0:0H]
+```
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -ne 1 ]] ; then 
+    echo "One argument expected"
+    exit 1
+fi
+
+if [[ $(id -u) -ne 0 ]] ; then 
+    echo "Only root can execute"
+    exit 2
+fi
+
+user="${1}"
+grep -q "${user}" <(cat /etc/passwd | cut -d ':' -f 1)
+if [[ $? -ne 0 ]] ; then
+    echo "Invalid user"
+    exit 2
+fi
+
+processes=$(ps -e -o user=,time=,pid=)
+user_processes=$(echo "${processes}" | grep -E "${user}" | wc -l )
+
+#a)
+
+while read line ; do
+    user_to_compare=$(echo "${line}" | awk '{print $2}')
+    count=$(echo "${line}" | awk  '{print $1}')
+    if [[ "${user_to_compare}" == "${user}" || "${count}" -lt "${user_processes}" ]] ; then 
+        continue
+    fi
+
+    echo "${line}" | cut -d ' ' -f 2
+
+done < <(echo "${processes}" | awk '{print $1}' | sort | uniq -c )
+
+#b)
+
+time=$(echo "${line}" | awk '{print $2}')
+count=0
+while read line ; do
+    count=$((count + 1))
+    hours=$(echo "${line}" | cut -d ':' -f 1)
+    minutes=$(echo "${line}" | cut -d ':' -f 2)
+    seconds=$(echo "${line}" | cut -d ':' -f 3)
+    secs=$((hours*3600 + minutes*60 + seconds))
+    result=$((result + secs))
+done < <(echo "${time}")
+
+echo "${result} / ${count} " | bc
+$((result*=2))
+while read line ; do
+    seconds=$(echо "${line}" | awk '{print $2}' | sed 's/:/*3600/' | sed 's/:/*60/' | bc )
+
+    if [[ "${seconds}" -gt $((result*=2)) ]] ; then
+        kill -9 $(echo "${line}" | awk '{print $3}')
+    fi
+done < <(echo "${user_processes}" | awk '{print $1,$2}')
+```
