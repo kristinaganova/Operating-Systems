@@ -124,6 +124,7 @@ while read line ; do
     fi
 done < <(echo "${user_processes}" | awk '{print $1,$2}')
 ```
+---
 
 
 ###  `2017-SE-03`
@@ -176,3 +177,113 @@ done <<< "${users}"
 
 rm "${temp}"
 ```
+
+---
+
+
+###  `2017-SE-06`
+ Напишете скрипт, който ако се изпълнява от root потребителя, намира процесите на
+потребителите, които не са root потребителя и е изпълнено поне едно от следните неща:
+• имат зададена несъществуваща home директория;
+• не са собственици на home директорията си;
+• собственика на директорията не може да пише в нея.
+Ако общото количество активна памет (RSS - resident set size, non-swaped physical memory that a task has
+used) на процесите на даден такъв потребител е по-голямо от общото количество активна памет на
+root потребителя, то скриптът да прекратява изпълнението на всички процеси на потребителя.
+За справка:
+```
+$ ps aux | head -n 5
+USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+root 1 0.0 0.0 15820 1052 ? Ss Apr21 0:06 init [2]
+root 2 0.0 0.0 0 0 ? S Apr21 0:00 [kthreadd]
+root 3 0.0 0.0 0 0 ? S Apr21 0:02 [ksoftirqd/0]
+root 5 0.0 0.0 0 0 ? S< Apr21 0:00 [kworker/0:0H]
+Алтернативно, може да ползвате изхода от ps -e -o uid,pid,rss
+root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+s61934:x:1177:504:Mariq Cholakova:/home/SI/s61934:/bin/bash
+```
+
+```bash
+#!/bin/bash
+
+processes=$(ps -e -o user=,pid=,rss=)
+users=$(echo "${processes}" | awk '{print $1}' | grep -v "root" | sort | uniq )
+
+temp=$(mktemp)
+while read user ; do
+    home_dir=$(cat /etc/passwd | grep "${user}" | cut -d ':' -f 6)
+    sum=$(echo "${processes}" | grep "${user}" | awk '{sum+=$3} END {print sum}')
+    if [[ ! -e "${home_dir}" ]] ; then
+        echo "${user} ${sum}" >> "${temp}"
+        continue
+    fi
+
+    if [[ $(stat -c '%U' "${home_dir}") != "${user}" ]]
+        echo "${user} ${sum}" >> "${temp}"
+        continue
+    fi
+
+    if [[ $(stat -c '%A' "${home_dir}" | cut -c 3) != 'w' ]] ; then
+        echo "${user} ${sum}" >> "${temp}"
+        continue
+    fi
+done <<< "${users}"
+
+root_sum=$(echo "${processes}" | grep "root" | awk '{sum+=$3} END {print sum}')
+
+while read line ; do
+    if [[ $(echo "${line}" | cut -d ' ' -f 2) -gt "${root_sum}" ]] ; then
+        kill -9 $(echo "${processes}" | grep "${user}" | awk '{print $2}')
+    fi
+done <<< "${temp}"
+
+```
+
+---
+
+
+###  `2018-SE-01`
+Нека съществува програма за моментна комуникация (Instant messaging), която записва
+логове на разговорите в следния формат:
+• има определена директория за логове (LOGDIR)
+• в нея има директорийна структура от следния вид:
+LOGDIR/протокол/акаунт/приятел/
+като на всяко ниво може да има няколко екземпляра от съответния вид, т.е. няколко директории
+протокол, във всяка от тях може да има няколко директории акаунт, и във всяка от тях – няколко
+директории приятел
+• във всяка от директориите приятел може да има файлове с имена от вида yyyy-mm-dd-hh-mmss.txt – година-месец-ден и т.н., спрямо това кога е започнал даден разговор
+• всеки такъв файл представлява лог на даден разговор със съответния приятел, като всяка разменена реплика между вас е на отделен ред
+• даден идентификатор приятел може да се среща няколко пъти в структурата (напр. през различни ваши акаунти сте водили разговори със същия приятел)
+Напишете скрипт, който приема задължителен позиционен аргумент - име на лог директория (LOGDIR).
+Скриптът трябва да извежда десетимата приятели, с които имате най-много редове комуникация глобално (без значение протокол и акаунт), и колко реда имате с всеки от тях. Опишете в коментар как
+работи алгоритъмът ви.
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -ne 1 ]] ; then
+    echo "Invalid number of arguments"
+    exit 1
+fi
+
+dir=${1}
+if [[ ! -d "${dir}" ]] ; then
+    echo "Not a valid directory"
+    exit 2
+fi
+
+friends=$(find "${dir}" -mindepth 4 -maxdepth 4 -type f | cut -d '/' -f 4 | sort | uniq)
+files=$(find "${dir}" -type f)
+
+temp=$(mktemp)
+while read friend ; do
+    conversations=$(echo "${files}" | grep -E "^([^\/]*\/){3}${friend}\/[0-9]{4}-([0-9]{2}-){4}[0-9]{2}\.txt$" )
+    lines=$(cat ${conversations} | wc -l)
+    echo "${friend} ${lines}" >> "${temp}"
+done < <(echo "${friends}")
+cat ${temp} | sort -n -r -k 2 -t ' ' | head -n 10
+
+```
+
+
