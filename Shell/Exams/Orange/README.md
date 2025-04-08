@@ -1100,3 +1100,168 @@ for server in ${SERVERS} ; do
 done
 
 ```
+
+---
+
+### `2024-SE-06`
+Напишете скрипт reconcile.sh, който по подаден файл описващ желано състояние на файловата
+система, осигурява, че то е спазено.
+Скриптът ви трябва да приема един аргумент - път до файл. Всеки ред в този файл ще бъде в един от
+следните формати:
+• <filename> file <permissions>
+Скриптът ви трябва да подсигури, че съществува обикновеният файл <filename> с права за
+достъп <permissions>.
+• <dirname> dir <permissions>
+Скриптът ви трябва да подсигури, че съществува директорията <dirname> с права за достъп
+<permissions>.
+• <linkname> symlink <target>
+Скриптът ви трябва да подсигури, че съществува файлът <linkname> от тип symbolic link, който
+да сочи към файла <target>.
+• <filename> nonexistant
+Скриптът ви трябва да подсигури, че файлът <filename> не съществува.
+Преди всяка поява на <permissions> е възможно да е подадена и незадължителна двойка <user owner>:<group
+owner>, които представляват потребител собственик и група собственик за съответния файл. Скриптът ви трябва да подсигури, че файлът ще притежава именно тези собственици.
+Примерно съдържание на файла:
+/home dir root:users 0755
+/home/pesho dir pesho:pesho 0700
+/home/pesho/some_file file 0644
+/home/pesho/some_dir dir 0755
+/home/pesho/some_dir/some_link symlink ../some_file
+/home/pesho/some_dir file 0755
+/home/pesho/some_other_dir nonexistant
+За всеки <filename>, <dirname> и <linkname>, ако съответният файл:
+• вече съществува, но е от друг тип, то следва той да бъде изтрит и пресъздаден с желания тип и
+метаданни.
+• вече съществува и е от желания тип, то трябва единствено метаданните да бъдат обновени, ако
+е нужно.
+• не съществува, то той трябва да бъде създаден. Ако съответната директория, в която се намира,
+не съществува, тя трябва да бъде създадена спрямо текущата маска.
+Възможно е няколко реда във файла да реферират към едно и също име във файловата система. В
+такъв случай приемаме, че последният ред е финалното желано състояние.
+ВАЖНО: Скриптът ви може да бъде изпълняван от всякакъв потребител във всякаква среда. Важна е
+проверката за грешки и обратната връзка към потребителя при неуспешна операция. При неуспешна
+операция, скриптът ви не трябва да приключва работа.
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -ne 1 ]] ; then
+    echo "Invalid number of parameters"
+    exit 1
+fi
+
+if [[ ! -f "${1}" ]] ; then
+    echo "Invalid file"
+    exit 2
+fi
+
+file="${1}"
+
+change_owners() {
+    path="${1}"
+    user_group="${2}"
+    real_owners=$(stat -c "%U:%G" "${path}")
+    if [[ -n ${user_group} ]] && [[ "${real_owners}" != "${user_group}" ]] ;
+        chown "${user_group}" "${path}"
+    fi
+}
+
+change_perms() {
+    path="${1}"
+    permissions="${2}"
+    real_perms=$(stat -c '%a' "${path}")
+    if [[ $(echo "${permissions}" | cut -c 2-) -ne "${real_perms}" ]] ;
+        chmod "${permissions}" "${path}"
+    fi
+}
+
+delete_file() {
+    path="${1}"
+    real_type=$(stat -c '%F' "$path")
+    if [[ "${real_type}" == "directory" ]] ; then
+        rm -r "${path}"
+    else 
+        rm "${path}"
+    fi
+}
+
+to_ignore=$(mktemp)
+
+clear_data() {
+    file="${1}"
+    while read line ; do
+        type=$(echo "${line}" | cut -d ' ' -f 2) 
+        if [[ "${type}" == "symlink" ]] ; then
+            path=$(echo "${line}" | cut -d ' ' -f 3)
+        else
+            path=$(echo "${line}" | cut -d ' ' -f 1)
+        fi
+
+        same_files=$(echo ${line} | grep "${path}")
+        if [[ $(echo "${same_files}" | wc -l) -gt 1 ]] ; then
+            echo "${same_files}" | head -n -1  >> "${to_ignore}"
+        fi
+    done < "${file}"
+}
+
+clear_data "${file}"
+
+while read line ; do
+    path=$(echo "${line}" | cut -d ' ' -f 1)
+    type=$(echo "${line}" | cut -d ' ' -f 2) 
+    permissions=$(echo "${line}" | grep -E -o " [0-7]{4}")
+
+    if [[ "${type}" == "nonexistant" ]] ; then
+        if [[ -e "${path}" ]] ; then
+            delete_file "${path}"
+        fi
+        continue
+    fi
+
+    user_group=$(echo "${line}" | sed -E "/^${path} ${type}/d" | sed -E "s/((a-zA-Z]+:[a-zA-Z]+){0,1}) [0-9]{4}/\1/")
+
+    if [[ "${type}" == "symlink" ]] ; then
+        target=$(echo "${line}" | cut -d ' ' -f 3)
+        if [[ -e "${path}" ]] && [[ ! -L "${path}" ]] ; then
+            delete_file "${path}"
+        fi
+        ln -s "${target}" "${path}"
+    elif [[ "${type}" == "file" ]] ; then
+        if [[ -e "${path}" ]] && [[ ! -f "${path}" ]] ; then
+            delete_file ${path}
+            
+            dir=$(dirname "${path}")
+            mkdir -p "${dir}"
+            touch "${path}"
+            chmod -r "${permissions}" "${path}"
+            if [[ -n "${user_group}" ]] ; then
+                chown "${user_group}" "${path}"
+            fi
+        elif [[ -f "${perms}" ]] ; then
+            change_perms "${path}" "${permissions}"
+            change_owners "${path}" "${user_group}"
+        else
+            dir=$(dirname "${path}")
+            mkdir -p "${dir}"
+            touch "${path}"
+        fi
+    elif [[ "${type}" == "dir" ]] ; then
+        if [[ -e "${path}" ]] && [[ ! -d  "${path}" ]] ; then
+            delete_file ${path}
+
+            mkdir -p "${path}"        
+            chmod -r "${permissions}" "${path}"
+            if [[ -n "${user_group}" ]] ; then
+                chown "${user_group}" "${path}"
+            fi
+        elif [[ -d "${path}" ]] ;
+            change_perms "${path}" "${permissions}"
+            change_owners "${path}" "${user_group}"
+        else 
+            mkdir -p "${path}"        
+        fi
+    fi
+done < <(grep -v -f "${to_ignore}" "${file}")
+
+rm ${to_ignore}
+```
