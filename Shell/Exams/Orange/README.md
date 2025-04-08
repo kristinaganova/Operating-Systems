@@ -1265,3 +1265,98 @@ done < <(grep -v -f "${to_ignore}" "${file}")
 
 rm ${to_ignore}
 ```
+
+---
+
+### `2024-SE-04`
+Напишете скрипт bake.sh, който приема един задължителен аргумент - име на файл. Скриптът трябва да реализира build система, която изгражда дадения файл по следния алгоритъм.
+36
+Правила за изграждане на файлове
+Скриптът се управлява от файл с име bakefile, който би трябвало да съществува в текущата директория, от която извикваме bake.sh. Файлът bakefile описва правила, по които се изграждат различните файлове, които bake.sh може да изгражда. Всеки ред дефинира правило за някой файл във вида:
+<файл>:<зависимост 1> <зависимост 2> ... <зависимост N>:<команда>
+Където:
+• <файл>: името на файла, за който се отнася този ред
+• <зависимост ...>: имена на файлове, които трябва да бъдат изградени преди да може да се
+изгради файлът <файл>. Може да приемете, че зависимостите няма да образуват цикъл.
+• <команда>: произволна команда, която изгражда файла. Може да приемете, че след извикването
+на тази команда, ще е бил създаден файл с име <файл>.
+Алгоритъм за изграждане на файл
+• Ако за файла има запис в bakefile:
+1. Изграждаме всички негови зависимости по същия алгоритъм
+2. Изпълняваме изграждащата команда, но само ако ако някоя от зависимостите е по-нова
+от самия файл
+• Ако за файла няма запис в bakefile:
+– Ако файлът съществува, bake.sh го приема за изграден и не прави нищо
+– Ако файлът не съществува, това води до грешка и няма как да продължим нататък
+Пример
+Нека е даден следният bakefile:
+chapter1.pdf:chapter1.md:pandoc -o chapter1.pdf chapter1.md
+chapter2.pdf:chapter2.md drawing42.svg:pandoc -o chapter2.pdf chapter2.md
+book.pdf:chapter1.pdf chapter2.pdf:pdfunite chapter1.pdf chapter2.pdf book.pdf
+drawing42.svg:drawing42.dia:dia_to_svg drawing42.dia > drawing42.svg
+Ако извикваме ./bake.sh book.pdf, скриптът ще трябва да изгради book.pdf. За целта първо трябва
+да изгради зависимостите на book.pdf (chapter1.pdf и chapter2.pdf, които пък от своя страна имат
+други зависимости), след което да изпълни командата pdfunite chapter1.pdf chapter2.pdf book.pdf,
+за която приемаме, че ще създаде book.pdf (без да се интересуваме каква е командата и какво точно
+прави, стига да е завършила успешно).
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -ne 1 ]] ; then
+    echo "Invalid number of arguments"
+    exit 1
+fi
+
+if [[ ! -f "${1}" ]] ; then
+    echo "Invalid parameter: Not a file"
+    exit 2
+fi
+
+bakefile=${1}
+
+files_to_create=$(cut -d ':' -f 1 "${bakefile}")
+
+find_rule() {
+    grep -E "^${1}" "${2}"
+}
+
+created_files=$(mktemp)
+
+create_files() {
+
+    file_name="${1}"
+    comd="${2}"
+
+    if grep -q "^${file_name}" "${created_files}" ; then 
+        return
+    fi
+
+    dependencies=$(find_rule ${file_name} | cut -d ':' -f 2 )
+    while IFS= read -r dep ; do
+        if [[ ! -f "${dep}" ]] ; then
+            echo "Cannot continue creating file beacuse of a missing resourse: ${file_name}"
+            exit 3
+        fi 
+
+        create_files "${file_name}" "${comd}" "${created_files}"
+    done < <(echo "${dependencies}")
+
+    if [[ ! -f "${file_name}" || $(find "${dependencies}" -newer "${file_name}") ]]; then
+        eval "${comd}"
+        if [[ "${?}" -ne 0 ]] ; then
+            echo "Not created: ${file_name} "
+            exit 4
+        fi
+    fi
+    echo "${file_name}" >> "${created_files}"
+}
+
+while read line ; do
+    file_name=$(echo "${line}" | cut -d ' ' -f 1)
+    comd=$(echo "${line}" | cut -d ' ' -f 3)
+    create_files "${file_name}" "${comd}"
+done < "${bakefile}"
+
+rm "${created_files}"
+```
