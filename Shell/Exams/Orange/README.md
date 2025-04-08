@@ -878,3 +878,225 @@ while read line ; do
 done < <(./occ user:list)
 
 ```
+
+---
+
+### `2025-IN-02`
+Вашите колеги от съседната лаборатория имат нужда да автоматизират периодичното създаване на
+определен вид конфигурационни файлове на база на съществуващ текстови файл (map.txt) с изисквания. Всеки ред на файла гарантирано се състои от три думи (малки латински букви), разделени с
+whitespace. Примерно съдържание на файла:
+alfa haydn degas
+bravo rossini renoir
+charlie schubert monet
+delta berlioz monet
+echo chopin renoir
+foxtrot liszt monet
+Семантично думите на всеки ред дефинират:
+• име на сървър (hostname) – alfa, bravo, charlie...
+• име на зона (composer) – haydn, rossini, schubert...
+• име на екип (artist) – degas, renoir, monet...
+Общо файлът map.txt описва множество от екипи, като всеки екип съдържа един или повече сървъра;
+а всеки сървър има точно една зона.
+Помогнете на колегите си, като напишете bash скрипт foo.sh, който приема два позиционни параметъра – низ, дефиниращ domain и име на файл с описание.
+Скриптът трябва да извежда на стандартния изход редове, съдържащи релация за всяка зона към
+всеки сървър на съответния екип в указания по-долу формат. Имената на сървърите са допълнени с
+подадения domain и завършват с точка, като редовете с релациите за даден екип се предхождат от ред,
+започващ със знак за коментар (;) с името на екипа.
+Примерно извикване и изход на база горния файл:
+```
+$ foo.sh example.net map.txt
+```
+; team degas
+haydn IN NS alfa.example.net.
+; team monet
+schubert IN NS charlie.example.net.
+schubert IN NS delta.example.net.
+39
+schubert IN NS foxtrot.example.net.
+berlioz IN NS charlie.example.net.
+berlioz IN NS delta.example.net.
+berlioz IN NS foxtrot.example.net.
+liszt IN NS charlie.example.net.
+liszt IN NS delta.example.net.
+liszt IN NS foxtrot.example.net.
+; team renoir
+rossini IN NS bravo.example.net.
+rossini IN NS echo.example.net.
+chopin IN NS bravo.example.net.
+chopin IN NS echo.example.net.
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -ne 2 ]] ; then
+    echo "Invalid number of parameters"
+    exit 1
+fi
+
+if [[ -z "${1}" ]] || [[ ! "${1}" =~ ^([a-z]+.)+\.net$ ]] ; then
+    echo "Invalid domain"
+    exit 2
+fi
+
+domain="${1}"
+map="${2}"
+
+if [[ ! -f "${map}" ]] ; then
+    echo "Second parameter shuld be a valid file"
+    exit 3
+fi
+
+teams=$(cat "${map}" | cut -d ' ' -f 3 | sort | uniq)
+
+while read team ; do
+    echo "; team ${team}"
+
+    matches_for_team=$(grep -E "^[a-z]+ [a-z]+ ${team}" "${map}")
+    composers=$(echo "${matches_for_team}" | cut -d ' ' -f 2)
+    hostnames=$(echo "${matches_for_team}" | cut -d ' ' -f 1)
+
+    while read composer ; do
+
+        while read hostname ; do
+
+            echo "${composer} IN NS ${hostname}.${domain}."
+
+        done < <(echo "${hostnames}")
+
+    done < <(echo "${composers}")
+
+done < <(echo "${teams}")
+
+```
+
+---
+
+### `2024-IN-01`
+Вашите колеги от съседната лаборатория се нуждаят от shell скрипт, с който да автоматизират синхронизацията на директории между различни сървъри. Скриптът трябва да е базиран на командата
+rsync, която има следният общ вид:
+rsync [OPTION...] SRC DEST
+В рамките на задачата ще ползваме следният опростен синтаксис за командата:
+• при зададена опция -a и ако SRC и DEST са абсолютни пътища до директории завършващи
+с наклонена черта (/path/to/dir/), командата ще направи пълна синхронизация на всички
+обекти (файлове и директории) рекурсивно от SRC в DEST, запазвайки времената, правата и
+собствениците на обектите, които копира;
+• двете директории SRC и DEST биха могли да са локални или само една от тях може да е директория на друг сървър, в който случай синтаксисът е username@server:/path/to/dir/
+• синхронизацията винаги е от SRC към DEST, без значение дали и двете са локални директории
+или една от тях е отдалечена;
+• при зададена опция --delete обекти, които съществуват в DEST, но не и в SRC, ще бъдат изтрити
+за да може DEST да е точно копие на SRC;
+• при зададена опция -v командата извежда имената на обектите които синхронизира;
+• при зададена опция -n реална синхронизация не се извършва, командата само пресмята кои
+обекти трябва да се синхронизират, и ако има указана и опция -v извежда имената им.
+Напишете скрипт, който да може да автоматизира синхронизацията на директория между текущата
+машина (на която се изпълнява скрипта) и една или повече отдалечени машини. Работата на скрипта
+зависи от текстови конфигурационен файл, чието име би трябвало да е указано в environment променливата ARKCONF. Всеки ред на файла е във вид на key=value двойки, например:
+WHAT="/home/amarr/sync"
+WHERE="abaddon apostle archon augur"
+WHO="heideran"
+Където:
+• WHAT дефинира абсолютен път до директорията, която трябва да се синхронизира, като дефиницията се отнася както за локалната директория (на машината на която се изпълнява скрипта),
+така и за отдалечените сървъри, т.е., директорията има еднакво абсолютно име на всички машини;
+• WHERE дефинира списък със сървъри, с които да се извършва синхронизация, като е гарантирано,
+че имената на сървърите са само малки латински букви и първата буква е винаги ‘a’;
+• WHO дефинира username, който да се ползва за достъп до отдалечените сървъри (всички сървъри
+ползват този username).
+За нормална работа на вашия скрипт се изисква и трите ключа да са дефинирани, като за удобство
+приемаме, че стойностите им точно спазват примерния формат. Комбинацията от вашият скрипт и
+валиден конфигурационен файл ще наричаме система за синхронизация. Общ вид на извикване на
+скрипта: ark.sh push|pull [-d] [server] където:
+• аргументите не са позиционни, т.е. нямат наредба;
+• аргументите, оградени в квадратни скоби (-d, server) не са задължителни;
+• ако е зададен валиден за системата параметър server, синхронизацията се извършва само между локалната машина и този сървър;
+• ако не указан server, синхронизацията се извършва между локалната машина и всеки от сървърите итеративно (по сървърите);
+• ако е зададена опция -d, синхронизацията трябва да се извършва с включена опция --delete
+на командата rsync;
+• задължително трябва да е дефиниран точно един от аргументите push или pull, тъй като те са
+под-команди, които определят посоката на синхронизация:
+– при push – от локалната машина към отдалечените сървъри;
+– при pull – от отдалечените сървъри към локалната машина.
+Примерни валидни извиквания:
+ark.sh push -d
+ark.sh -d abaddon pull
+ark.sh apostle pull
+Всяка синхронизация в рамките на работата на системата е тристъпкова – скриптът трябва да:
+• изведе на потребителя какво ще бъде синхронизирано;
+• изиска някакъв вид потвърждение от потребителя;
+• извърши конкретната синхронизация.
+Обърнете внимание на валидацията, искаме системата за синхронизация да е устойчива на невнимателно подадени параметри.
+
+
+```bash
+#!/bin/bash
+
+seen_command=0
+command=""
+flag=""
+server=""
+source "${ARKCONF}"
+
+for arg in "${@}" ; do
+    if [[ "${arg}" == "push" ]] || [[ "${arg}" == "pull" ]] ; then
+        if [[ "${seen_command}" -eq 1 ]] ; then
+            echo "One command at a time"
+            exit 1
+        fi
+        command="${arg}"
+        seen_command=1
+    elif [[ "${arg}" == "-d" ]] ; then
+        flag="-d"
+    else
+        server="${arg}"
+    fi
+done
+
+
+if [[ "${seen_command}" -eq 0 ]] ; then
+    echo "Missing mode"
+    exit 2
+fi
+
+if [[ -z "${ARKCONF}" ]] || [[ ! -f "${ARKCONF}" ]] ; then
+    echo "Conf file does not exist"
+    exit 3
+fi
+
+if [[ -z "${WHAT}" || -z "${WHERE}" || -z "${WHO}" ]] ; then
+    echo "Invalid conf file content"
+    exit 4
+fi
+
+if [[ -n "${target}" ]] ; then
+    if ! echo "${WHERE}" | grep -q "${server}" ; then
+        echo "Invalid server"
+        exit 5
+    fi
+    servers="${server}"
+else
+    servers="${WHERE}"
+fi
+
+for server in ${SERVERS} ; do
+    echo "${server}"
+    if [[ "${command}" == "push" ]] ; then
+        SRC="${WHAT}"
+        DEST="${WHO}@${server}:${WHAT}"
+    else
+        SRC="${WHO}@${server}:${WHAT}"
+        DEST="${WHAT}"
+    fi
+
+    rsync -anv $D_FLAG -e ssh "${SRC}" "${DEST}"
+
+    read -p "Continue with synchronization (y/n): " CONFIRM
+    if [[ "$CONFIRM" != "y" ]]; then
+        echo "Skipping $server."
+        continue
+    fi
+
+    echo "Synchronizing $server..."
+    rsync -av $D_FLAG -e ssh "$SRC" "$DEST"
+
+done
+
+```
