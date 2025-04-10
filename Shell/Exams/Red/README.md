@@ -665,3 +665,56 @@ cat "${temp}" | sort | uniq -c | sort -r -n -k 1 -t ' ' | awk '{print $2}' | hea
 
 rm "${temp}"
 ```
+
+---
+
+### `2023-SE-01`
+Напишете скрипт, който цензурира всички срещания на “забранени” думи в дадени текстове.
+Примерно извикване: ./redact.sh bad_words.lst ./my_texts.
+Първият аргумент на скрипта е име на текстов файл, съдържащ по една забранена дума на ред:
+cake
+cakes
+shake
+banana
+pine_apple42
+shakinator
+Вторият аргумент е име на директория: интересуват ни всички файлове в нея и в нейните поддиректории, чиито имена завършват на .txt.
+30
+Скриптът ви трябва да подмени всички срещания на забранени думи във въпросните файлове с брой
+звездички, съответстващ на дължината на думата. Подменят се само цели срещания на думи.
+Например, ако имаме файл ./my_texts/shake.txt със съдържание:
+to make banana shake, we start by blending four bananas.
+след изпълнение на скрипта, съдържанието му трябва да е:
+to make ****** *****, we start by blending four bananas.
+Под “дума” разбираме последователност от букви, цифри и долни черти.
+За улеснение, може да приемете, че разглеждаме само малки букви (никъде не се срещат главни букви).
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -ne 2 ]] ; then
+    echo "Not a valid number of parameters: should be 2"
+    exit 1
+fi
+
+if [[ ! -f "${1}" ]] ; then
+    echo "Not a valid file: ${1}"
+    exit 2
+fi
+
+if [[ ! -d "${2}" ]] ; then
+    echo "Not a valid directory: ${2}"
+    exit 3
+fi
+
+to_censore="${1}"
+dir="${2}"
+
+while read word ; do
+    censore=$(echo "${word}" | tr '[a-zA-Z0-9_]' '*')
+    while read -r file ; do
+        sed -E -i "s/\<${word}\>/${censore}/Ig" "${file}"
+    done < <(find "${dir}" -type f -name "*.txt" 2>/dev/null)
+done < <(cat "${to_censore}" )
+```
+
