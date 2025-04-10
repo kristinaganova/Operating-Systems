@@ -1600,13 +1600,11 @@ fi
 
 camera="${1}"
 
-if [[ -e "${2}" ]] ; then
-    echo "Already exists"
-    exit 3
-fi
-
 lib="${2}"
-mkdir "${lib}"
+
+if [[ ! -e "${2}" ]] || [[ ! -d "${2}" ]] ; then
+    mkdir "${lib}"
+fi
 
 files=$(mktemp)
 find "${camera}" -type f -name '*.jpg' -printf '%TF_%TT %p\n' | sort -t ' ' -k 1,1
@@ -1618,13 +1616,17 @@ prev_date=""
 
 copy_photoes() {
     while read line ; do
-        mv "${line}" "${1}"
+        if [[ -e "${1}/${line}" ]] ; then
+            continue
+        else
+            mv "${line}" "${1}"
+        fi
     done < "${2}"
 }
 
 while read photo ; do
-    date=$(stat -c '%y' "${photo}" | awk '${print $1')
-    name=$(echo "${date}" | sed -E "^([0-9]{4}-[0-9]{2}-[0-9]{2}) ([0-9]{2}:[0-9]{2}:[0-9]{2}).*/\1_\2.jpg/")
+    date=$(stat -c '%y' "${photo}" | awk '${print $1}') 
+    name=$(echo "${date}" | sed -E "s/^([0-9]{4}-[0-9]{2}-[0-9]{2}) ([0-9]{2}:[0-9]{2}:[0-9]{2}).*/\1_\2.jpg/")
     if [[ -z "${current_start}" ]] ; then
         current_start="${date}"
         prev_date="${date}"
@@ -1643,4 +1645,128 @@ while read photo ; do
 done < "${files}"
 ```
 
-## Note: It is not tested and have to think about the bonus!!!
+## Note: It is not tested 
+
+---
+
+### `2023-SE-04`
+Напишете скрипт, който открива еднакви по съдържание файлове в дадена директория и използва
+тази информация, за да намали заетото място на диска.
+Скриптът приема един параметър — име на директория. Примерно извикване: ./dedup.sh ./mydir
+Скриптът трябва да направи две неща:
+• ако има файлове с еднакво съдържание, да направи така, че имената на тези файлове да сочат
+към едно и също копие на съответните данни
+• да изведе съобщение, съдържащо следната информация:
+– колко групи файлове са дедупликирани
+– колко байта от мястото на диска се е освободило
+Забележки:
+• считаме, че цялата дадена директория се намира върху една файлова система
+• ако два файла имат еднакви хеш-суми, считаме, че са еднакви по съдържание
+
+```bash
+#!/bin/bash
+
+if [[ ${#} -ne 1 ]] ; then
+    echo "Wrong number of arguments"
+    exit 1
+fi
+
+dir="${1}"
+
+if [[ ! -d "${dir}" ]] ; then
+    echo "${dir} must be a dir"
+    exit 2
+fi
+
+temp=$(mktemp)
+
+while read file ; do
+
+    echo "${file} $(sha256sum "${file}")" >> "${temp}"
+
+done < <(find "${dir}" -type f)
+
+count=0
+copies_size=0
+links_size=0
+
+while read hash ; do
+
+    to_stay=$(grep " ${hash}" "${temp}" | head -n 1 | cut -d ' ' -f 1) 
+    copies=$(grep " ${hash}" "${temp}" | tail -n +2 | cut -d ' ' -f 1)
+
+    if [[ -z "${copies}" ]] ; then
+        continue
+    fi
+
+    while read copy ; do
+
+        (( copies_size += $(stat -c '%s' "${copy}") ))
+        rm "${copy}"
+
+        ln "${to_stay}" "${copy}"
+        (( links_size += $(stat -c '%s' "${copy}") )) 
+
+    done < <(echo "${copies}" | cut -d ' ' -f 1)
+
+    (( count += 1 ))
+
+done < <(cut -d ' ' -f 2 "${temp}" | sort -n | uniq)
+
+freed_space=$((copies_size - links_size))
+
+echo "Groups files dedublicated: ${count}"
+echo "Freed space: ${freed_space}bytes"
+
+rm "${temp}"
+
+#logic
+#find all hashs
+#iterrate over each hash and from every copy create link to the first
+#count size of the copies and then substarct it
+#count hashes count to get the groups count
+```
+
+---
+
+### `2023-SE-03`
+При статистическа обработка на текстове често се налага да имаме списък от думи (наречени “стопдуми”), които се срещат прекалено често и не носят стойност за изследването. Такива думи са например “you”, “then”, “for” и т.н.
+Напишете скрипт stopword_candidates.sh, който приема като аргумент име на директория и извежда 10-те думи, които най-много изглеждат като стоп-думи.
+• За да бъде стоп-дума, трябва броят файлове, които я съдържат ≥ 3 пъти да е ≥
+общия брой файлове
+2
+• Една дума е по-добър кандидат от друга, ако има по-голям общ брой срещания във всички файлове
+Забележки:
+• Под “всички файлове” имаме предвид всички обикновени файлове в дадената директория и
+нейните поддиректории
+• Под “дума” имаме предвид непрекъсната последователност от латински букви (a-z) - всички
+останали символи не са част от думите
+31
+• За улеснение може да приемете, че във файловете няма главни букви
+
+```bash
+#!/bin/bash
+if [[ ${#} -ne 1 ]] ; then
+    echo "Wrong number of parameters"
+    exit 1
+fi
+
+if [[ ! -d "${1}" ]] ; then
+    echo "${1}: Not a valid directory"
+    exit 2
+fi
+
+dir="${1}"
+
+files_count=$(find "${dir}" -type f | wc -l)
+temp=$(mktemp)
+
+while read file ; do 
+    words=$(grep -Eo "\<[a-zA-Z]+\>" "${file}" | sort | uniq -c | awk -v count="${files_count}" '$1>=3 && $1>=count/2 {print $2}')
+    echo "${words}" >> "${temp}"
+done < <(find "${dir}" -type f)
+
+cat "${temp}" | sort | uniq -c | sort -r -n -k 1 -t ' ' | awk '{print $2}' | head -n 10 
+
+rm "${temp}"
+```
