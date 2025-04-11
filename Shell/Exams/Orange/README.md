@@ -1175,3 +1175,191 @@ done < "${archives}"
 
 rm ${archives}
 ```
+
+---
+
+### `2020-SE-04`
+Напишете скрипт, който приема два аргумента - имена на директории. Първата (SRC)
+съществува, докато втората (DST) трябва да бъде създадена от скрипта. Директорията SRC и нейните
+поддиректории може да съдържат файлове, чиито имена завършат на .jpg. Имената на файловете
+може да съдържат интервали, както и поднизове, оградени със скоби, например:
+A single (very ugly) tree (Outdoor treks) 2.jpg
+Falcons.jpg
+Gorgonzola (cheese).jpg
+Leeches (two different ones) (Outdoor treks).jpg
+Pom Pom Pom.jpg
+За даден низ ще казваме, че е почистен, ако от него са премахнати leading и trailing интервалите и
+всички последователни интервали са сведени до един.
+За всеки файл дефинираме следните атрибути:
+• заглавие - частта от името преди .jpg, без елементи оградени в скоби, почистен. Примери:
+A single tree 2
+Falcons
+Gorgonzola
+Leeches
+Pom Pom Pom
+• албум - последният елемент от името, който е бил ограден в скоби, почистен. Ако албум е празен
+стринг, ползваме стойност по подразбиране misc. Примери:
+Outdoor treks
+misc
+cheese
+Outdoor treks
+misc
+• дата - времето на последна модификация на съдържанието на файла, във формат YYYY-MMDD
+• хеш - първите 16 символа от sha256 сумата на файла. Забележка: приемаме, че в тази идеална
+вселена първите 16 символа от sha256 сумата са уникални за всеки файл от тези, които ще се
+наложи да обработваме.
+Скриптът трябва да създава в директория DST необходимата структура от под-директории, файлове
+и symlink–ове, така че да са изпълнени следните условия за всеки файл от SRC:
+• DST/images/хеш.jpg - копие на съответния файл
+• следните обекти са относителни symlink–ове към хеш.jpg:
+– DST/by-date/дата/by-album/албум/by-title/заглавие.jpg
+– DST/by-date/дата/by-title/заглавие.jpg
+– DST/by-album/албум/by-date/дата/by-title/заглавие.jpg
+– DST/by-album/албум/by-title/заглавие.jpg
+– DST/by-title/заглавие.jpg
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -ne 2 ]] ; then
+    echo "Invalid number of arguments"
+    exit 1
+fi
+
+if [[ ! -d "${1}" ]] ; then
+    echo "Invalid source directory"
+    exit 2
+fi
+
+if [[ -d "${2}" ]] ; then
+    echo "Destination directory should not exist"
+    exit 3
+fi
+
+SRC="${1}"
+DST="${2}"
+
+mkdir -p "${DST}/images"
+mkdir -p "${DST}/by_date"
+mkdir -p "${DST}/album/by_date"
+mkdir -p "${DST}/title"
+
+create_symlink() {
+    if [[ ! -d "${1}" ]] ; then
+        mkdir -p "${1}"
+    fi
+    ln -s "${2}" "${3}"
+}
+
+while IFS= read -rd '' file; do
+    heading=$(basename "${file}" | sed 's/([^)]*)//g' | sed 's/ */ /g' | sed 's/\.jpg$//g')
+    album=$(echo "${filename}" | grep -oE '\([^)]*\)' | tail -n 1 | sed 's/[()]//g' | tr -s ' ' | sed 's/^ *//;s/ *$//')
+    [[ -z "$album" ]] && album="misc"
+
+    date=$(stat -c '%y' "${file}" | cut -d ' ' -f 1 )
+    hs=$(sha256sum "${file}" | cut -c 1-16 )
+    copy="${DST}/images/${hs}.jpg"
+    cp "${file}" "${DST}/images/${hs}.jpg"
+ 
+    create_symlink "${DST}/by-date/${date}/by-album/${album}/by-title" "${copy}" "${DST}/by-date/${date}/by-album/${album}/by-title/${heading}.jpg" 
+
+    create_symlink "${DST}/by-album/${album}/by-date/${date}/by-title" "${copy}" "${DST}/by-album/${album}/by-date/${date}/by-title/${heading}.jpg" 
+    
+    create_symlink "${DST}/by-album/${album}/by-title" "${copy}" "${DST}/by-album/${album}/by-title/${heading}.jpg" 
+    
+    ln -s "${copy}" "${DST}/title/${heading}.jpg"
+    ln -s "${copy}" "${DST}/by-date/${date}/by-title/${heading}.jpg" 
+
+done < <(find "${SRC}" -type f -name "*.jpg" -print0)
+```
+
+---
+
+### `2020-SE-05` 
+Напишете shell скрипт, който приема 3 позиционни аргумента – две имена на файлове и
+име на директория. Примерно извикване:
+```
+$ ./foo.sh foo.pwd config.cfg cfgdir/
+```
+В директорията cfgdir/ и нейните под-директории може да има файлове с имена завършващи на
+.cfg. За да са валидни, тези файлове трябва да съдържат редове само в следните формати (редовете
+започващи с # са коментари):
+# internal laboratory
+{ no-production };
+16
+{ volatile };
+# meow configs
+{ run-all; };
+Във файла foo.pwd има описани потребителски имена (username) и MD5 хеш суми на паролите им,
+с по един запис на ред, в следният формат:
+username:password_hash
+Също така, разполагате с команда pwgen, която генерира и извежда на STDOUT случайни пароли, и
+знаете, че поддържа следните два аргумента:
+```
+$ pwgen [ password_length ] [ number_of_passwords ]
+```
+Вашият скрипт трябва да валидира cfg файловете в директорията, и за тези, които не са валидни, да
+извежда на STDOUT името на файла и номерирани редовете, които имат проблем, в следния формат:
+Error in filename.cfg:
+Line 1:XXXX
+Line 37:YYYY
+където XXXX и YYYY е съдържанието на съответния ред.
+За валидните файлове, скриптът трябва да:
+• генерира config.cfg като обединение на съдържанието им;
+• името на файла, без частта .cfg дефинира потребителско име. Ако във файла с паролите не
+съществува запис за този потребител, то такъв да се добави и на стандартния изход да се изведе
+потребителското име и паролата (поне 16 символа) разделени с един интервал.
+
+```bash
+#!/bin/bash
+
+if [[ "${#}" -ne 3 ]] ; then
+    echo "Scripts takes exactly 3 parameters"
+    exit 1
+fi
+
+if [[ ! -f "${1}" ]] ; then
+    echo "First parameter should be a file" 
+    exit 2
+fi
+
+users_file="${1}"
+
+if [[ ! -f "${2}" ]] ; then
+    echo "Second parameter should be a file" 
+    exit 3
+fi
+
+conf_file="${2}"
+
+if [[ ! -d "${3}" ]] ; then
+    echo "Third parameter should be a directory" 
+    exit 4
+fi
+
+cfg_dir="${3}"
+valid_files=$(mktemp)
+while read file ; do
+    invalid_lines=$(grep -n -E -v "^#.*" | grep -v -E "^[0-9]*:{[^}]*};$" | grep -E -v "^[0-9]*:[[:space:]]*$" ) 
+    if [[ -z "${invalid_lines}" ]] ; then
+        echo "${file}" >> "${valid_files}"
+        continue
+    fi
+
+    echo "Error in: ${file}:"
+    echo "${invalid_lines}"
+        
+done < <(find "${cfg_dir}" -type f -name "*.cfg" 2>/dev/null)
+
+touch "${conf_file}"
+cat $(cat "${valid_files}" | tr '\n' ' ') >> "${conf_file}"
+
+username=$(echo "$(basename "${conf_file}")" | sed -E "s/^([^\.]*).cfg/\1/g")
+
+if ! grep -q "^${username}:" "${users_file}" ; then
+    password=$(pwgen 16 1)
+    passwd_hash=$(echo "${password}" | md5sum | cut -d ' ' -f 1)
+    echo "${username}:${passwd_hash}" >> "${users_file}"
+    echo "Username: ${username} Password: ${password}"
+fi
+```
