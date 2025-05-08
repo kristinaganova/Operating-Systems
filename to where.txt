@@ -1,2 +1,0 @@
-semaphors: 55 
-teo semaphors: 5
