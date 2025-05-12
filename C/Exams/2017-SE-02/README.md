@@ -1,5 +1,3 @@
-# Simple C Program mimicking `cat` command with line numbering
-
 ## Описание
 
 Напишете програма на C, която да работи подобно на командата `cat`, реализирайки само следната функционалност:
