@@ -30,7 +30,7 @@ int openFile(const char* filename, int flags, mode_t mode) {
 
     int fd;
     if ( (fd = open(filename, flags, mode)) == -1) {
-        err(3, "Error while opening file %s", filename);
+        err(2, "Error while opening file %s", filename);
     }
     return fd;
 }
@@ -43,7 +43,7 @@ void copyFile(int fd_from, int fd_to) {
         ssize_t written = 0;
         while (written < readSize) {
             ssize_t w = write(fd_to, c + written, readSize - written);
-            if (w == -1) err(7, "Write error");
+            if (w == -1) err(10, "Write error");
             written += w;
         }
     }
@@ -68,19 +68,19 @@ int main(int argc, char* argv[]) {
 
     Header h;
     if (read(fd_patch, &h, sizeof(Header)) != sizeof(Header)) {
-        err(4, "Error reading patch header");
+        err(3, "Error reading patch header");
     }
 
     if (h.magic != 0xEFBEADDE) {
-        errx(8, "Invalid magic value");
+        errx(4, "Invalid magic value");
     }
     if (h.header_version != 0x01) {
-        errx(7, "Invalid header version");
+        errx(5, "Invalid header version");
     }
 
     struct stat st;
     if (fstat(fd_patch, &st) == -1) {
-        err(5, "Error stating patch file");
+        err(6, "Error stating patch file");
     }
 
     off_t patch_data_size = st.st_size - sizeof(Header);
@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
 
     if (h.data_version == 0x00) {
         if (patch_data_size != h.count * sizeof(Type0)) {
-            errx(6, "Invalid patch file size for data version 0x00");
+            errx(7, "Invalid patch file size for data version 0x00");
         }
 
         Type0 t;
@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
             off_t offset_bytes = (off_t)t.offset * sizeof(uint8_t);
 
             if (lseek(fd2, offset_bytes, SEEK_SET) == -1) {
-                err(9, "Error seeking output file");
+                err(8, "Error seeking output file");
             }
 
             uint8_t current;
@@ -113,15 +113,15 @@ int main(int argc, char* argv[]) {
             }
 
             if (current != t.original) {
-                errx(10, "Original byte mismatch at offset %u", t.offset);
+                errx(9, "Original byte mismatch at offset %u", t.offset);
             }
 
             if (lseek(fd2, offset_bytes, SEEK_SET) == -1) {
-                err(9, "Error seeking output file for writing");
+                err(8, "Error seeking output file for writing");
             }
 
             if (write(fd2, &t.new, sizeof(uint8_t)) != sizeof(uint8_t)) {
-                err(11, "Error writing patched byte");
+                err(10, "Error writing patched byte");
             }
         }
     } else if (h.data_version == 0x01) {
