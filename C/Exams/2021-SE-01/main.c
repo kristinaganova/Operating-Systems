@@ -16,46 +16,39 @@ int openFile(const char* filename, int flags, mode_t perms) {
     return fd;
 }
 
-int main(int argc, char* argv[]) {
-    if (argc != 4) {
-        errx(1, "Usage: ./program input.scl input.sdl output.sdl");
+int main(int argc, char* argv[]) {  
+    if ( argc != 3 ) {
+        errx(1, "Expected 2 arguments");
     }
 
-    int fd_scl = openFile(argv[1], O_RDONLY, 0);
-    int fd_sdl = openFile(argv[2], O_RDONLY, 0);
-    int fd_result = openFile(argv[3], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    int fd_input = openFile(argv[1], O_RDONLY, 0);
+    int fd_output = openFile(argv[2], O_CREAT | O_RDWR | O_TRUNC, 0644);
 
-    //to do 
-    // add validation for the input files with stat
+    uint8_t byte;
+    int readSize;
+    while ( (readSize = read(fd_input, &byte, sizeof(uint8_t))) > 0) {
+        uint16_t result = 0;
+        for (int i = 7; i >= 0; i--) {
+            uint8_t bit = (byte >> i) & 1;
+            result <<= 2;
 
-    uint8_t scl_byte;
-    ssize_t scl_read;
-
-    while ((scl_read = read(fd_scl, &scl_byte, sizeof(scl_byte))) == sizeof(scl_byte)) {
-        for (uint8_t mask = 1 << 7; mask > 0; mask >>= 1) {
-            uint16_t value;
-            ssize_t sdl_read = read(fd_sdl, &value, sizeof(value));
-            if (sdl_read == -1) {
-                err(4, "Error while reading SDL");
-            } else if (sdl_read == 0) {
-                errx(4, "SDL file is too short for the given SCL bits");
+            if ( bit == 1 ) {
+                result |= 2;
+            } else {
+                result |= 1;
             }
+        }
 
-            if ((scl_byte & mask) != 0) {
-                if (write(fd_result, &value, sizeof(value)) != sizeof(value)) {
-                    err(5, "Error while writing to output");
-                }
-            }
+        if (write(fd_output, &result, sizeof(uint16_t)) == -1) {
+            err(5, "Error while writing");
         }
     }
 
-    if (scl_read == -1) {
-        err(6, "Error while reading SCL");
+    if ( readSize == -1) {
+        err(4, "Error while reading");
     }
-
-    close(fd_scl);
-    close(fd_sdl);
-    close(fd_result);
-
+    
+    close(fd_input);
+    close(fd_output);
     return 0;
 }
