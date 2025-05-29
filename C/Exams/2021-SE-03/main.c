@@ -1,57 +1,127 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <err.h>
 #include <sys/stat.h>
+#include <err.h>
+#include <stdbool.h>
+#include <string.h>
+#include <errno.h>
 
-int openFile(const char* filename, int flags, mode_t perms) {
-    if (filename == NULL) errx(2, "Invalid filename");
+void write_all(int fd, const void *buf, size_t count) {
+    const char *ptr = (const char *)buf;
+    size_t total_written = 0;
 
-    int fd = open(filename, flags, perms);
-    if (fd == -1) {
-        err(3, "Error while opening file %s", filename);
+    while (total_written < count) {
+        ssize_t written = write(fd, ptr + total_written, count - total_written);
+        if (written == -1) {
+            err(7, "Error while writing");
+        }
+        total_written += written;
     }
-
-    return fd;
 }
 
-int main(int argc, char* argv[]) {  
-    if ( argc != 3 ) {
-        errx(1, "Expected 2 arguments");
+uint16_t swap_uint16(uint16_t val) {
+    return (val << 8) | (val >> 8);
+}
+
+bool isLittleEndian(void) {
+    unsigned int x = 1;
+    return (*(char*)&x == 1);
+}
+
+int uint_to_str(uint32_t num, char* buf) {
+    int i = 0;
+    char temp[10]; 
+
+    if (num == 0) {
+        buf[0] = '0';
+        return 1;
     }
 
-    int fd_input = openFile(argv[1], O_RDONLY, 0);
-    int fd_output = openFile(argv[2], O_CREAT | O_RDWR | O_TRUNC, 0644);
+    while (num > 0) {
+        temp[i++] = '0' + (num % 10);
+        num /= 10;
+    }
 
-    uint16_t piece;
-    int readSize;
-    while ( (readSize = read(fd_input, &piece, sizeof(uint16_t))) > 0) {
-        uint8_t result = 0;
-        for (int i = 7; i >= 0; i--) { 
-            uint16_t bits = (piece >> (i * 2)) & 3;
+    for (int j = 0; j < i; j++) {
+        buf[j] = temp[i - j - 1];
+    }
+    return i;
+}
 
-            result <<= 1;
+int main(int argc, char* argv[]) {
+    if (argc != 3) {
+        errx(1, "Expected 2 arguments: input_file output_file");
+    }
 
-            if ( bits == 2 ) {
-                result |= 1;
-            } else if ( bits == 1) {
-                result |= 0;
-            } else {
-                errx(6, "Invalid Manchester encoding at segment %d: %u", i, bits);
-            }
+    int fd_input = open(argv[1], O_RDONLY);
+    if (fd_input == -1) err(2, "Opening input file");
+
+    int fd_output = open(argv[2], O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd_output == -1) {
+        err(3, "Opening output file");
+    }
+
+    struct stat st;
+    if (fstat(fd_input, &st) == -1) {
+        err(4, "Stat input file");
+    }
+
+    if (st.st_size % sizeof(uint16_t) != 0) {
+        errx(5, "Input file size not multiple of 2");
+    }
+
+    uint32_t n = st.st_size / sizeof(uint16_t);
+    if (n > 524288) {
+        errx(6, "Input file too large");
+    }
+
+    bool littleEndian = isLittleEndian();
+
+    const char* include_header = "#include <stdint.h>\n\n";
+    write_all(fd_output, include_header, strlen(include_header));
+
+    const char* arrN_start = "const uint32_t arrN = ";
+    write_all(fd_output, arrN_start, strlen(arrN_start));
+
+    char buf[20];
+    int len = uint_to_str(n, buf);
+    write_all(fd_output, buf, len);
+
+    const char* semicolon_newline = ";\n";
+    write_all(fd_output, semicolon_newline, 2);
+
+    const char* arr_start = "const uint16_t arr[] = {";
+    write_all(fd_output, arr_start, strlen(arr_start));
+
+    uint16_t num;
+    bool first = true;
+    ssize_t bytes_read;
+
+    while ((bytes_read = read(fd_input, &num, sizeof(num))) == sizeof(num)) {
+        if (!littleEndian) {
+            num = swap_uint16(num);
         }
 
-        if (write(fd_output, &result, sizeof(uint8_t)) == -1) {
-            err(5, "Error while writing");
+        if (!first) {
+            write_all(fd_output, ", ", 2);
+        } else {
+            first = false;
         }
+
+        len = uint_to_str(num, buf);
+        write_all(fd_output, buf, len);
     }
 
-    if ( readSize == -1) {
-        err(4, "Error while reading");
+    if (bytes_read == -1) {
+        err(8, "Reading input file");
     }
-    
+
+    const char* arr_end = "};\n";
+    write_all(fd_output, arr_end, strlen(arr_end));
+
     close(fd_input);
     close(fd_output);
+
     return 0;
 }
