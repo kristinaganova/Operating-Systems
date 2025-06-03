@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
 
     uint8_t byte;
     int readBytes;
-    while ( (readBytes = read(fd_compressed, &byte, sizeof(uint8_t))) > 0 ) {
+    while ( (readBytes = read(fd_compressed, &byte, sizeof(uint8_t))) > 0 ) { //could use header.packet_count to limit the number of packets read
         int N = (byte & 0x7F);
         int type = ((byte >> 7) & 1);
 
@@ -74,6 +74,7 @@ int main(int argc, char* argv[]) {
 
     }
     
+    //should chesk if result size is equal to original_size from header
     if (readBytes == -1) {
         err(4, "Errow while reading");
     }
