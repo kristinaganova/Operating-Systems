@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
 
     }
     
-    //should chesk if result size is equal to original_size from header
+    //should check if result size is equal to original_size from header
     if (readBytes == -1) {
         err(4, "Errow while reading");
     }
