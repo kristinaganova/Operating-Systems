@@ -1,115 +1,89 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <sys/wait.h>
 #include <err.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-int openFile(const char* filename, mode_t flags, int mode) {
-    int fd;
+typedef struct program {
+    char* programName;
+    pid_t pid;
+    bool isDone;
+} program;
 
-    if ((fd = open(filename, flags, mode)) == -1) {
-        err(4, "Error while opening file %s", filename);
+int getIndex(program* programs, int size, pid_t searched) {
+    for (int i = 0; i < size; i++) {
+        if (!programs[i].isDone && programs[i].pid == searched) {
+            return i;
+        }
     }
 
-    return fd;
+    return -1;
 }
 
-void waitChild(int pid, char* outfile, uint16_t S, uint8_t* bytes) {
-    int status;
-    if (waitpid(pid, &status, 0) == -1) {
-        err(10, "wait");
+void executeCommand(char* programName, program* programs, int index) {
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        err(2, "Error while forking");
     }
-
-    if (!WIFEXITED(status)) {
-        int outputFd = openFile(outfile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-
-        if (write(outputFd, bytes, S) != S) {
-            err(9, "write");
-        }
-
-        close(outputFd);
-        exit(42);
+   
+    programs[index].programName = programName;
+    programs[index].isDone = false;;
+    programs[index].pid = pid;
+ 
+    if (pid == 0) {
+        execlp(programName, programName, (char*)NULL);
+        err(3, "Error while executing program %s", programName);
     }
 }
 
 int main(int argc, char* argv[]) {
-    if (argc != 4) {
-        errx(1, "Expected 3 arguments");
-    }
+	if (argc < 2 || argc > 11) {
+        errx(1, "Expected between 1 and 10 arguments");
+	}
 
-    char* program = argv[1];
-    int numTests = atoi(argv[2]);
-    char* result = argv[3];
+	program programs[10];
 
-    if (numTests < 0 || numTests > (1 << 8)) {
-        errx(2, "Invalid number of tests ");
-    }
+	for (int i = 1; i < argc; i++) {
+        executeCommand(argv[i], programs, i - 1);	
+	}
 
-    int randFd = openFile("/dev/random", O_RDONLY, 0);
+    int count = 0;
+    while (1) {
+        if (count == argc - 1) break;
 
-    for (int i = 0; i < numTests; i++) {
-        uint16_t S;
-        if (read(randFd, &S, sizeof(S)) == -1) {
-            err(5, "read S");
+        int status;
+        pid_t pid;
+
+        if ((pid = wait(&status)) == -1) {
+            err(4, "Errro while waiting");
         }
 
-        if (S < 1) {
-            continue;
-        }
-
-        uint8_t bytes[65535];
-        if (read(randFd, bytes, S) != S) {
-            err(5, "read bytes");
-        }
-
-        int fds[2];
-        if (pipe(fds) == -1) {
-            err(6, "pipe");
-        }
-
-        int pid = fork();
-        if (pid == -1) {
-            err(3, "fork");
-        }
-
-        if (pid == 0) {
-            close(fds[1]);
-
-            if (dup2(fds[0], 0) == -1) {
-                err(7, "dup2");
-            }
-            close(fds[0]);
-
-            int nullFd = openFile("/dev/null", O_WRONLY, 0);
-
-            if (dup2(nullFd, 1) == -1) {
-                err(7, "dup2");
-            }
-            if (dup2(nullFd, 2) == -1) {
-                err(7, "dup2");
-            }
-            close(nullFd);
-
-            close(randFd);
-            execlp(program, program, (char*)NULL);
-            err(8, "execlp");
-        }
-
-        close(fds[0]);
-
-        if (write(fds[1], bytes, S) != S) {
-            err(9, "write");
-        }
+        int index = getIndex(programs, argc -1, pid);
         
-        close(fds[1]);
+        if (WIFEXITED(status)) {
+            if (WEXITSTATUS(status) != 0) {
+                executeCommand(programs[index].programName, programs, index);
+            } else {
+                programs[index].isDone = true;
+                count++;
+            }
+        } else {
+            programs[index].isDone = true;
+            for (int i = 0; i < argc - 1; i++) {
+                if (!programs[i].isDone) {
+                    if (kill(programs[i].pid, SIGTERM) == -1) {
+                        err(5, "kill");
+                    }
+                }
+            }
 
-        waitChild(pid, result, S, bytes);
+            while (wait(NULL) > 0) {}
+
+            exit(index + 1);
+        }
     }
-
-    int outputFd = openFile(result, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    close(randFd);
-    close(outputFd);
-
-    exit(0);
 }
