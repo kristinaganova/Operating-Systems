@@ -66,9 +66,9 @@ int main(int argc, char* argv[]) {
         }
 
         int D = atoi(argv[2]);
-    if (D < 0) {
-        errx(1, "Invalid D");
-    }
+        if (D < 0) {
+            errx(1, "Invalid D");
+        }
 
         int pids[2][2];
 
