@@ -1,104 +1,84 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
+#include <stdint.h>
 #include <fcntl.h>
 #include <err.h>
+#include <unistd.h>
 
-void numToStr(int num, char *str) {
-    int idx = 0;
-    if (num == 0) {
-        str[idx++] = '0';
-    } else {
-        int temp = num;
-        while (temp > 0) {
-            str[idx++] = (temp % 10) + '0';
-            temp /= 10;
-        }
-    }
-    str[idx++] = ' ';
-    str[idx] = '\0';
+typedef struct Record {
+    uint16_t offset;
+    uint8_t original;
+    uint8_t new;
+} Record;
 
-    int left = 0, right = idx - 1;
-    while (left < right) {
-        char tmp = str[left];
-        str[left] = str[right];
-        str[right] = tmp;
-        left++;
-        right--;
+int openFile(const char* name, int mode, mode_t perms) {
+    int fd = open(name, mode, perms);
+
+    if (fd < 0) {
+        err(2, "Error while opening file %s", name);
     }
+
+    return fd;
 }
 
-void process_and_write(char c, char prev, int* newLineCount, bool numeric) {
-    if (prev == '\n' && numeric) {
-        char numStr[16];
-        numToStr(*newLineCount, numStr);
-        if (write(1, numStr, strlen(numStr)) != (ssize_t)strlen(numStr)) {
-            err(4, "Error while writing");
-        }
+off_t getFileSize(int fd) {
+    int current;
+    int result;
+
+    if ( (current = lseek(fd, 0, SEEK_CUR)) == -1 ) {
+        err(3, "Error while seeking");
     }
 
-    if (c == '\n') {
-        (*newLineCount)++;
+    if ( (result = lseek(fd, 0, SEEK_END)) == -1 ) {
+        err(3, "Error while seeking");
     }
 
-    if (write(1, &c, sizeof(char)) != sizeof(char)) {
-        err(4, "Error while writing");
+    if ( lseek(fd, current, SEEK_SET) == -1 ) {
+        err(3, "Error while seeking");
     }
+
+    return result;
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        errx(1, "Expected at least 1 argument");
+int main(int argc, char* argv[]) {
+    if ( argc != 4 ) errx(1, "Expected 3 arguments");
+
+    const char* f1 = argv[1];
+    const char* f2 = argv[2];
+    const char* patch = argv[3];
+
+    int fd1 = openFile(f1, O_RDONLY, 0);
+    int fd2 = openFile(f2, O_RDONLY, 0);
+    int fd3 = openFile(patch, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+
+    if ( getFileSize(fd1) != getFileSize(fd2) ) {
+        errx(4, "Files should be the same sizes" );
     }
 
-    bool numeric = false;
-    int start = 1;
+    uint8_t byte1, byte2;
 
-    if (strcmp(argv[1], "-n") == 0) {
-        numeric = true;
-        start++;
-    }
+    uint16_t index = 0;
 
-    int newLineCount = 1;
-    for (int i = start; i < argc; i++) {
-        const char *current = argv[i];
-        char buff[1024];
-
-        if (strcmp(current, "-") == 0) {
-            ssize_t readBytes;
-            while ((readBytes = read(0, buff, sizeof(buff))) > 0) {
-                char prev = '\n';
-                for (ssize_t j = 0; j < readBytes; j++) {
-                    process_and_write(buff[j], prev, &newLineCount, numeric);
-                    prev = buff[j];
-                }
+    while ( (read(fd1, &byte1, sizeof(byte1)) == sizeof(byte1))
+         && (read(fd2, &byte2, sizeof(byte2)) == sizeof(byte2)) ) {
+        if (byte1 != byte2) {
+            if ( (write(fd3, &index, sizeof(index)) ) == -1 ) {
+                err(5, "Error while writing");
             }
-            if (readBytes == -1) {
-                err(2, "Error while reading from stdin");
+            if ( (write(fd3, &byte1, sizeof(uint8_t)) ) == -1 ) {
+                err(5, "Error while writing");
             }
+            if ( (write(fd3, &byte2, sizeof(uint8_t)) ) == -1 ) {
+                err(5, "Error while writing");
+            }
+        }
+        else {
+            index++;
             continue;
         }
 
-        int fd = open(current, O_RDONLY);
-        if (fd == -1) {
-            err(3, "Error while opening file %s", current);
-        }
-
-        ssize_t readBytes;
-        char c;
-        char prev = '\n';
-        while ((readBytes = read(fd, &c, sizeof(char))) == sizeof(char)) {
-            process_and_write(c, prev, &newLineCount, numeric);
-            prev = c;
-        }
-
-        if (readBytes == -1) {
-            err(5, "Error while reading in %s", current);
-        }
-
-        close(fd);
+        index++;
     }
 
-    return 0;
+        close(fd1);
+        close(fd2);
+        close(fd3);
 }

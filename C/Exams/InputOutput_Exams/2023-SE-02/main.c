@@ -97,11 +97,11 @@ int main(int argc, char* argv[]) {
             }
 
             if(write(1, "\n", sizeof(c)) == -1) {
-				err(6, "can't write");
-			}
+		err(6, "can't write");
+	    }
 
-			close(fd_dic);
-			close(fd_idx);
+	    close(fd_dic);
+	    close(fd_idx);
             exit(0);
         } else if (res > 0) {
             right = mid;
@@ -110,9 +110,8 @@ int main(int argc, char* argv[]) {
         }
     }
 
-	close(fd_dic);
-	close(fd_idx);
-
-	errx(1, "Word %s has no definition", searched);
+    close(fd_dic);
+    close(fd_idx);
+    errx(1, "Word %s has no definition", searched);
 
 }

@@ -52,15 +52,12 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
-        //uint8_t* arr = malloc(N * sizeof(uint8_t)); 
-        uint8_t arr[1024]; // Assuming N will not exceed 1024
-        //if ( arr == NULL ) errx(8, "Memory allocation error");
+        uint8_t arr[(1 << 7)]; // N cannot exceed 2^7
         arr[0] = byte;
         arr[1] = N;
 
         for ( int i = 2; i < N - 1; i++ ) {
             if ( read(fd_stream, &arr[i], sizeof(uint8_t)) == -1 ) {
-                //free(arr);
                 err(4, "Error while reading");
             }
             checksum ^= arr[i];
@@ -68,22 +65,18 @@ int main(int argc, char* argv[]) {
     
         uint8_t cs;
         if ( read(fd_stream, &cs, sizeof(uint8_t)) == -1 ) {
-            //free(arr);
             err(4, "Error while reading");
         }
 
         if (cs != checksum) {
-            //free(arr);
             continue;
         }
          
         arr[N-1] = cs;
 
         if (write(fd_messages, arr, sizeof(uint8_t) * N) == -1) {
-            //free(arr);
             err(6, "Error whil writing");
         }
-        //free(arr);
     }
 
     if ( readBytes == -1 ) {
