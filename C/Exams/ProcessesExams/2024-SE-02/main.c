@@ -41,15 +41,15 @@ void executeCommand(char* programName, program* programs, int index) {
 }
 
 int main(int argc, char* argv[]) {
-	if (argc < 2 || argc > 11) {
+    if (argc < 2 || argc > 11) {
         errx(1, "Expected between 1 and 10 arguments");
-	}
+    }
 
-	program programs[10];
+    program programs[10];
 
-	for (int i = 1; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         executeCommand(argv[i], programs, i - 1);	
-	}
+    }
 
     int count = 0;
     while (1) {
