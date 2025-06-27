@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
         err(2, "Error while opening file %s", f2);
     }
 
-    if ( (fd3 = open(f3, O_WRONLY | O_TRUNC | O_CREAT, 644)) == -1) {
+    if ( (fd3 = open(f3, O_WRONLY | O_TRUNC | O_CREAT, 0644)) == -1) {
         err(2, "Error while opening file %s", f2);
     }
 
